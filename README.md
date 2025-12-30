@@ -46,7 +46,10 @@
 各ツールリポジトリの更新をトリガーに、app-hub を再ビルドする場合は
 ツール側に `repository_dispatch` を送るWorkflowを追加します。
 
-1. app-hub へ送信できるPATを用意し、ツールrepoの Secrets に `APP_HUB_DISPATCH_TOKEN` を設定
+1. app-hub へ送信できるPATを用意し、ツールrepoの Secrets に `APP_HUB_DISPATCH_TOKEN` を設定  
+   - Fine-grained PAT なら `Contents: write` が必要  
+   - 参照: https://docs.github.com/ja/rest/repos/repos?apiVersion=2022-11-28#create-a-repository-dispatch-event
+   - 項目が見当たらない場合は classic PAT の `repo` スコープでも可
 2. ツールrepoに以下のWorkflowを追加
 
 ```yaml
@@ -77,6 +80,8 @@ jobs:
             https://api.github.com/repos/<owner>/app-hub/dispatches \
             -d "${payload}"
 ```
+
+app-hub 側の Workflow は `event_type: tool_updated` のときだけ起動するようにしてあります。
 
 ## ツール側の注意
 
