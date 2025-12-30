@@ -4,6 +4,7 @@ import path from "node:path";
 
 const ROOT = process.cwd();
 const TOOLS_PATH = path.join(ROOT, "tools.json");
+const INDEX_TEMPLATE = path.join(ROOT, "index.html");
 const TMP_DIR = path.join(ROOT, "_tmp");
 const DIST_DIR = path.join(ROOT, "dist");
 
@@ -23,6 +24,53 @@ function assertSafeSlug(slug) {
 async function copyDir(src, dest) {
   await fs.rm(dest, { recursive: true, force: true });
   await fs.cp(src, dest, { recursive: true });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+async function buildIndex(tools) {
+  let template = null;
+  try {
+    template = await fs.readFile(INDEX_TEMPLATE, "utf8");
+  } catch {
+    template = null;
+  }
+
+  const links = tools
+    .map((tool) => {
+      const label = tool.name || tool.title || tool.slug;
+      const safeLabel = escapeHtml(label);
+      const safeSlug = escapeHtml(tool.slug);
+      return `        <li><a href="/${safeSlug}/">${safeLabel}<small>/${safeSlug}/</small></a></li>`;
+    })
+    .join("\n");
+
+  const html =
+    template && template.includes("<!-- TOOL_LINKS -->")
+      ? template.replace("<!-- TOOL_LINKS -->", links)
+      : `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>App Hub</title>
+  </head>
+  <body>
+    <h1>App Hub</h1>
+    <ul>
+${links}
+    </ul>
+  </body>
+</html>`;
+
+  await fs.writeFile(path.join(DIST_DIR, "index.html"), html);
 }
 
 async function main() {
@@ -82,6 +130,8 @@ async function main() {
 
     throw new Error(`Unknown tool type: ${type} for slug ${slug}`);
   }
+
+  await buildIndex(tools);
 }
 
 main().catch((err) => {
