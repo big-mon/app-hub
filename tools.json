@@ -1,6 +1,7 @@
 [
   {
     "slug": "amazon-link-cleaner-cloudflare",
+    "title": "Amazon短縮URLを展開してタグ削除",
     "repo": "https://github.com/big-mon/amazon-link-cleaner-cloudflare",
     "type": "static",
     "src": "./public"

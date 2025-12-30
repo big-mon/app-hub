@@ -1,75 +1,32 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>App Hub</title>
-    <meta name="description" content="Collection of tools hosted under a single Pages project." />
-    <style>
-      :root {
-        color-scheme: light;
-      }
-      body {
-        font-family: "Trebuchet MS", "Lucida Sans Unicode", "Lucida Grande", Arial, sans-serif;
-        margin: 0;
-        background: #f4f2ee;
-        color: #1c1a16;
-      }
-      .wrap {
-        max-width: 900px;
-        margin: 0 auto;
-        padding: 56px 20px 72px;
-      }
-      header {
-        margin-bottom: 32px;
-      }
-      h1 {
-        font-size: 40px;
-        margin: 0 0 12px;
-        letter-spacing: -0.02em;
-      }
-      p {
-        margin: 0;
-        font-size: 16px;
-        line-height: 1.6;
-      }
-      ul {
-        list-style: none;
-        padding: 0;
-        margin: 28px 0 0;
-        display: grid;
-        gap: 12px;
-      }
-      li a {
-        display: block;
-        background: #ffffff;
-        border-radius: 12px;
-        padding: 16px 18px;
-        text-decoration: none;
-        color: inherit;
-        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
-        transition: transform 180ms ease, box-shadow 180ms ease;
-      }
-      li a:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
-      }
-      small {
-        display: block;
-        margin-top: 6px;
-        color: #5c5a55;
-      }
-    </style>
+    <title>App Hub | ミニツール集</title>
+    <meta
+      name="description"
+      content="サブパス配信で集約されたミニツールの入口ページです。"
+    />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="wrap">
       <header>
-        <h1>App Hub</h1>
-        <p>Explore the tools hosted under this Pages project.</p>
+        <span class="badge"><span class="dot"></span> Mini Tools Hub</span>
+        <div class="grid">
+          <h1>今日の作業を軽くする、ミニツール集。</h1>
+          <p class="lead">
+            それぞれ独立したツールを、ひとつのPagesプロジェクトに集約しています。
+            目的のツールを選んですぐ使い始めてください。
+          </p>
+        </div>
+        <p class="note">各ツールはサブパス配信です。URL末尾に /&lt;slug&gt;/ が付与されます。</p>
       </header>
       <ul>
         <!-- TOOL_LINKS -->
       </ul>
+      <p class="footer">更新はGitHub ActionsのDirect Uploadで反映されます。</p>
     </div>
   </body>
 </html>

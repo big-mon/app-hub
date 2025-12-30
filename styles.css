@@ -1,0 +1,196 @@
+:root {
+  color-scheme: light;
+  --ink: #1b1f2a;
+  --muted: #4d5768;
+  --paper: #f6f1ea;
+  --accent: #ff8c42;
+  --accent-deep: #ff5d3a;
+  --card: #fffdf9;
+  --shadow: 0 18px 40px rgba(25, 35, 60, 0.18);
+}
+
+body {
+  font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Yu Gothic UI", "Yu Gothic",
+    "Meiryo", sans-serif;
+  margin: 0;
+  background: radial-gradient(circle at top, #fff7ef 0%, var(--paper) 42%, #efe9df 100%);
+  color: var(--ink);
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: absolute;
+  width: 420px;
+  height: 420px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 140, 66, 0.25), rgba(255, 140, 66, 0));
+  filter: blur(2px);
+  z-index: -1;
+}
+
+body::before {
+  top: -160px;
+  right: -140px;
+}
+
+body::after {
+  bottom: -200px;
+  left: -160px;
+  background: radial-gradient(circle, rgba(56, 177, 255, 0.25), rgba(56, 177, 255, 0));
+}
+
+.wrap {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 64px 20px 84px;
+}
+
+header {
+  margin-bottom: 36px;
+  display: grid;
+  gap: 16px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  width: fit-content;
+  color: var(--muted);
+  box-shadow: 0 10px 24px rgba(25, 35, 60, 0.12);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(120deg, var(--accent), var(--accent-deep));
+}
+
+h1 {
+  font-size: clamp(32px, 4.2vw, 46px);
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.lead {
+  font-size: 17px;
+  max-width: 640px;
+}
+
+.note {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+  display: grid;
+  gap: 12px;
+}
+
+li a {
+  display: block;
+  background: var(--card);
+  border-radius: 16px;
+  padding: 18px 20px;
+  text-decoration: none;
+  color: inherit;
+  box-shadow: var(--shadow);
+  border: 1px solid rgba(255, 140, 66, 0.15);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  animation: rise 420ms ease both;
+}
+
+li a:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 22px 46px rgba(25, 35, 60, 0.22);
+  border-color: rgba(255, 93, 58, 0.4);
+}
+
+small {
+  display: block;
+  margin-top: 6px;
+  color: #6b7280;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+li:nth-child(1) a {
+  animation-delay: 60ms;
+}
+
+li:nth-child(2) a {
+  animation-delay: 120ms;
+}
+
+li:nth-child(3) a {
+  animation-delay: 180ms;
+}
+
+li:nth-child(4) a {
+  animation-delay: 240ms;
+}
+
+li:nth-child(5) a {
+  animation-delay: 300ms;
+}
+
+li:nth-child(6) a {
+  animation-delay: 360ms;
+}
+
+li:nth-child(7) a {
+  animation-delay: 420ms;
+}
+
+li:nth-child(8) a {
+  animation-delay: 480ms;
+}
+
+li:nth-child(9) a {
+  animation-delay: 540ms;
+}
+
+li:nth-child(10) a {
+  animation-delay: 600ms;
+}
+
+.footer {
+  margin-top: 28px;
+  font-size: 13px;
+  color: #6b7280;
+}
