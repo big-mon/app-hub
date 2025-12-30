@@ -5,6 +5,7 @@ import path from "node:path";
 const ROOT = process.cwd();
 const TOOLS_PATH = path.join(ROOT, "tools.json");
 const INDEX_TEMPLATE = path.join(ROOT, "index.html");
+const HUB_ASSETS = ["styles.css"];
 const TMP_DIR = path.join(ROOT, "_tmp");
 const DIST_DIR = path.join(ROOT, "dist");
 
@@ -71,6 +72,18 @@ ${links}
 </html>`;
 
   await fs.writeFile(path.join(DIST_DIR, "index.html"), html);
+
+  for (const asset of HUB_ASSETS) {
+    const src = path.join(ROOT, asset);
+    const dest = path.join(DIST_DIR, asset);
+    try {
+      await fs.copyFile(src, dest);
+    } catch (err) {
+      if (err && err.code !== "ENOENT") {
+        throw err;
+      }
+    }
+  }
 }
 
 async function main() {
