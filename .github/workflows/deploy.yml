@@ -7,7 +7,7 @@ on:
   repository_dispatch:
 
 env:
-  PROJECT_NAME: app-hub
+  PROJECT_NAME: ${{ vars.PROJECT_NAME }}
 
 jobs:
   build-and-deploy:

@@ -56,7 +56,7 @@
 ## Cloudflare Pages の準備
 
 1. Cloudflare Pages で新規プロジェクトを作成
-2. プロジェクト名を `PROJECT_NAME` に設定（`.github/workflows/deploy.yml` の env）
+2. プロジェクト名を GitHub Variables の `PROJECT_NAME` に設定（Settings → Secrets and variables → Actions → Variables）
 3. カスタムドメイン設定は必要に応じて別途実施
 
 ## GitHub Secrets の設定
@@ -65,6 +65,10 @@ GitHubリポジトリの Secrets に以下を設定します。
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
+
+GitHubリポジトリの Variables に以下を設定します。
+
+- `PROJECT_NAME`
 
 ## ローカルでの確認
 
