@@ -24,8 +24,8 @@ body::before,
 body::after {
   content: "";
   position: absolute;
-  width: 420px;
-  height: 420px;
+  width: min(420px, 60vmin);
+  height: min(420px, 60vmin);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 140, 66, 0.25), rgba(255, 140, 66, 0));
   filter: blur(2px);
@@ -33,13 +33,13 @@ body::after {
 }
 
 body::before {
-  top: -160px;
-  right: -140px;
+  top: -10vmin;
+  right: -10vmin;
 }
 
 body::after {
-  bottom: -200px;
-  left: -160px;
+  bottom: -12vmin;
+  left: -12vmin;
   background: radial-gradient(circle, rgba(56, 177, 255, 0.25), rgba(56, 177, 255, 0));
 }
 
