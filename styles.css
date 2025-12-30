@@ -134,6 +134,29 @@ small {
   gap: 16px;
 }
 
+.footer {
+  margin-top: 32px;
+  display: flex;
+  justify-content: center;
+}
+
+.footer a {
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 31, 42, 0.12);
+  background: rgba(255, 255, 255, 0.8);
+  transition: border-color 200ms ease, color 200ms ease, transform 200ms ease;
+}
+
+.footer a:hover {
+  color: var(--ink);
+  border-color: rgba(27, 31, 42, 0.3);
+  transform: translateY(-2px);
+}
+
 @keyframes rise {
   from {
     opacity: 0;
