@@ -95,10 +95,6 @@ p {
   max-width: 640px;
 }
 
-.note {
-  font-size: 13px;
-  color: #6b7280;
-}
 
 ul {
   list-style: none;
@@ -187,10 +183,4 @@ li:nth-child(9) a {
 
 li:nth-child(10) a {
   animation-delay: 600ms;
-}
-
-.footer {
-  margin-top: 28px;
-  font-size: 13px;
-  color: #6b7280;
 }
