@@ -41,6 +41,43 @@
 2. 成果物を `dist/<slug>/` に集約
 3. `wrangler pages deploy dist` でDirect Upload
 
+### 3) ツール更新時の自動再ビルド
+
+各ツールリポジトリの更新をトリガーに、app-hub を再ビルドする場合は
+ツール側に `repository_dispatch` を送るWorkflowを追加します。
+
+1. app-hub へ送信できるPATを用意し、ツールrepoの Secrets に `APP_HUB_DISPATCH_TOKEN` を設定
+2. ツールrepoに以下のWorkflowを追加
+
+```yaml
+name: Notify App Hub
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch app-hub rebuild
+        env:
+          APP_HUB_DISPATCH_TOKEN: ${{ secrets.APP_HUB_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "${APP_HUB_DISPATCH_TOKEN}" ]; then
+            echo "APP_HUB_DISPATCH_TOKEN is not set"
+            exit 1
+          fi
+
+          payload=$(printf '{"event_type":"tool_updated","client_payload":{"repo":"%s","sha":"%s"}}' "${GITHUB_REPOSITORY}" "${GITHUB_SHA}")
+
+          curl -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${APP_HUB_DISPATCH_TOKEN}" \
+            https://api.github.com/repos/<owner>/app-hub/dispatches \
+            -d "${payload}"
+```
+
 ## ツール側の注意
 
 ### staticツール

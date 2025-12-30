@@ -5,6 +5,7 @@ on:
     branches: [main]
   workflow_dispatch:
   repository_dispatch:
+    types: [tool_updated]
 
 env:
   PROJECT_NAME: ${{ vars.PROJECT_NAME }}
