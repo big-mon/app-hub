@@ -5,5 +5,12 @@
     "repo": "https://github.com/big-mon/amazon-link-cleaner-cloudflare",
     "type": "static",
     "src": "./public"
+  },
+  {
+    "slug": "sorting-visualizer-web",
+    "title": "ソートのアルゴリズムを画像で比較するやつ",
+    "repo": "https://github.com/big-mon/sorting-visualizer-web",
+    "type": "static",
+    "src": "./public"
   }
 ]
