@@ -12,5 +12,14 @@
     "repo": "https://github.com/big-mon/sorting-visualizer-web",
     "type": "static",
     "src": "./public"
+  },
+  {
+    "slug": "image-compressor-web",
+    "title": "ローカルで画像をトリミング・圧縮",
+    "repo": "https://github.com/big-mon/image-compressor-web",
+    "type": "node",
+    "build": "pnpm install --frozen-lockfile && pnpm run build",
+    "outDir": "dist",
+    "basePathEnv": "BASE_PATH"
   }
 ]
