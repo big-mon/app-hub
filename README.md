@@ -12,6 +12,12 @@ pnpm run build
 
 まとめて実行する場合は `pnpm check` を使います。ビルドは各ツールをcloneしてビルドし、`dist/index.html` と `dist/<slug>/` を作成します。`dist` と `_tmp` は生成物のためGit管理しません。
 
+## クロール用ファイルとSEOの基礎
+
+`pnpm run build` は、検証済みの `tools.json` から人間向けのrootリンクと同じslugを使って、rootの `dist/robots.txt` と `dist/sitemap.xml` を生成します。公開ツールsubpathの在庫は `tools.json` で管理し、root `/` は別管理です。別のroute一覧は持ちません。rootのtitle・description・canonicalもテンプレートから生成します。
+
+信頼できない更新日時や優先度などのメタデータは作らず、meta keywords、隠しリンク、キーワード詰め込み、doorway page、cloaking、偽の評価、推測に基づくJSON-LDなどのSEOハックも追加しません。方針の一次資料は [Googleのサイトマップガイド](https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview)、[robots.txtガイド](https://developers.google.com/search/docs/crawling-indexing/robots/intro)、[スパムポリシー](https://developers.google.com/search/docs/essentials/spam-policies) を参照してください。
+
 ## tools.json にツールを追加
 
 `tools.json` に対象ツールを列挙します。
@@ -99,3 +105,7 @@ Variables:
 ## ツール側の注意
 
 staticツールはサブパス配信のため、`/assets/...` のような絶対path参照を避け、相対pathを推奨します。nodeツールは必要に応じて `basePathEnv` を受け取り、Viteなどの `base` に反映してください。
+
+## ライセンス
+
+このリポジトリは [MIT License](LICENSE) です。
