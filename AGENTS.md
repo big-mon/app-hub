@@ -36,6 +36,7 @@
 
 ## Completion
 
+- Every gate required by the applicable Change and verification matrix row must pass.
 - Report commands run, artifacts checked, changed files, and unresolved risks.
 - Keep `_tmp`, `dist`, and `node_modules` ignored; do not commit generated output.
 - Do not commit, push, open or update PRs, merge, deploy, or mutate GitHub/Cloudflare unless the
