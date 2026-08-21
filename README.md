@@ -21,6 +21,7 @@ pnpm run build
 - `basePathEnv` を指定すると、ビルド時に `/<slug>/` を環境変数へ渡します
 - `src` と `outDir` はclone rootの外へ出ない相対pathにします
 - 公開する `src`/`outDir` の配下はシンボリックリンクを拒否し、`.git` のディレクトリ/エントリは除外します（`src: "."` も利用できます）
+- `_tmp` 配下にcloneするpnpmのnodeツールは、Hub workspaceから分離してinstallするため `--ignore-workspace` を付けます
 - manifestに登録したnodeリポジトリと依存関係・install/buildスクリプトは、登録時に信頼するコードです。`build` は追跡対象manifestのshell契約として実行します。
 
 nodeツールの例:
@@ -31,7 +32,7 @@ nodeツールの例:
   "title": "ローカルで画像をトリミング・圧縮",
   "repo": "https://github.com/big-mon/image-compressor-web",
   "type": "node",
-  "build": "pnpm install --frozen-lockfile && pnpm run build",
+  "build": "pnpm --ignore-workspace install --frozen-lockfile && pnpm run build",
   "outDir": "dist",
   "basePathEnv": "BASE_PATH"
 }
@@ -39,7 +40,7 @@ nodeツールの例:
 
 ## GitHub Actions
 
-CIは `pull_request` と `main` への `push` で起動し、依存関係をfrozen installしてtestとbuildだけを実行します。CIではCloudflareのSecretsを使わず、デプロイもしません。
+CIは `pull_request` と `main` への `push` で起動し、依存関係をfrozen installした後にWranglerの利用可能性を確認し、testとbuildを実行します。CIではCloudflareのSecretsを使わず、デプロイもしません。
 
 Deployは `main` への `push`、手動の `workflow_dispatch`、または `tool_updated` 型の `repository_dispatch` で起動します。各ツールをcloneしてhubをビルドし、Cloudflare PagesへDirect Uploadします。
 
