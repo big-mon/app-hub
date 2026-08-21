@@ -3,7 +3,9 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+export const SITE_ORIGIN = "https://app.damonge.com";
 const HUB_ASSETS = ["styles.css"];
+const SITEMAP_NAMESPACE = "http://www.sitemaps.org/schemas/sitemap/0.9";
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REPO_PATH_PATTERN = /^\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
@@ -223,6 +225,28 @@ export function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+export function renderRobots() {
+  return `User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`;
+}
+
+export function renderSitemap(tools = []) {
+  const urls = [
+    `${SITE_ORIGIN}/`,
+    ...tools.map((tool) => `${SITE_ORIGIN}/${tool.slug}/`),
+  ];
+  const entries = urls
+    .map((url) => `  <url>\n    <loc>${url}</loc>\n  </url>`)
+    .join("\n");
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    `<urlset xmlns="${SITEMAP_NAMESPACE}">`,
+    entries,
+    "</urlset>",
+    "",
+  ].join("\n");
+}
+
 export function renderIndex(template, tools) {
   const links = tools
     .map((tool) => {
@@ -240,7 +264,9 @@ export function renderIndex(template, tools) {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>App Hub</title>
+    <title>App Hub | ミニツール集</title>
+    <meta name="description" content="サブパス配信で集約されたミニツールの入口ページです。" />
+    <link rel="canonical" href="${SITE_ORIGIN}/" />
   </head>
   <body>
     <h1>App Hub</h1>
@@ -393,6 +419,8 @@ async function buildHub(root = process.cwd()) {
   }
 
   await buildIndex(root, distDir, tools);
+  await fs.writeFile(path.join(distDir, "robots.txt"), renderRobots());
+  await fs.writeFile(path.join(distDir, "sitemap.xml"), renderSitemap(tools));
 }
 
 const isDirectExecution =

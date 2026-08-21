@@ -32,6 +32,10 @@ async function exists(target) {
 
 const hub = await import(pathToFileURL(SCRIPT_PATH).href);
 
+function sitemapLocs(xml) {
+  return [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
+}
+
 async function runBuildWithTools(tools) {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "app-hub-build-"));
   await writeFile(path.join(tempRoot, "tools.json"), `${JSON.stringify(tools)}\n`);
@@ -566,6 +570,67 @@ test("index rendering escapes labels and preserves name/title fallback behavior"
   assert.match(html, /href="\/title-tool\/">表示タイトル<small>/);
 });
 
+test("robots rendering points crawlers to the absolute sitemap", () => {
+  assert.equal(
+    hub.renderRobots(),
+    "User-agent: *\nAllow: /\n\nSitemap: https://app.damonge.com/sitemap.xml\n",
+  );
+});
+
+test("sitemap rendering emits one minimal canonical URL per validated tool", () => {
+  const tools = [
+    staticTool({ slug: "first-tool" }),
+    nodeTool({ slug: "second-tool" }),
+  ];
+  hub.validateTools(tools);
+
+  const xml = hub.renderSitemap(tools);
+  const expectedLocs = [
+    "https://app.damonge.com/",
+    "https://app.damonge.com/first-tool/",
+    "https://app.damonge.com/second-tool/",
+  ];
+  const expectedXml = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...expectedLocs.map((loc) => `  <url>\n    <loc>${loc}</loc>\n  </url>`),
+    "</urlset>",
+    "",
+  ].join("\n");
+
+  assert.deepEqual(sitemapLocs(xml), expectedLocs);
+  assert.equal(xml, expectedXml);
+  assert.doesNotMatch(xml, /<(?:lastmod|priority|changefreq)>/);
+});
+
+test("root index metadata identifies the canonical site and describes the hub", async () => {
+  const rootHtml = await readFile(path.join(REPO_ROOT, "index.html"), "utf8");
+
+  assert.match(
+    rootHtml,
+    /<link rel="canonical" href="https:\/\/app\.damonge\.com\/" \/>/,
+  );
+  assert.match(rootHtml, /<title>App Hub \| ミニツール集<\/title>/);
+  const description = rootHtml.match(
+    /<meta\s+name="description"\s+content="([^"]+)"\s*\/>/s,
+  )?.[1];
+  assert.ok(description && description.trim().length > 10);
+  assert.match(description, /ミニツール|ツール/);
+
+  const externalAnchors = [...rootHtml.matchAll(/<a\b[^>]*>/gi)]
+    .map(([anchor]) => anchor)
+    .filter((anchor) => /\bhref\s*=\s*["']https?:\/\//i.test(anchor));
+  assert.ok(externalAnchors.length > 0, "root index should contain an external anchor");
+  for (const anchor of externalAnchors) {
+    assert.match(anchor, /\btarget\s*=\s*["']_blank["']/i);
+    assert.match(
+      anchor,
+      /\brel\s*=\s*["'](?=[^"']*\bnoopener\b)(?=[^"']*\bnoreferrer\b)[^"']*["']/i,
+    );
+  }
+  assert.doesNotMatch(rootHtml, /name="keywords"/i);
+});
+
 test("preflight validation runs before filesystem mutation for unsafe manifests", async () => {
   const cases = [
     {
@@ -659,13 +724,32 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
     assert.equal(result.status, 0, output);
 
     const hubHtml = await readFile(path.join(tempRoot, "dist", "index.html"), "utf8");
+    assert.equal(
+      await readFile(path.join(tempRoot, "dist", "robots.txt"), "utf8"),
+      "User-agent: *\nAllow: /\n\nSitemap: https://app.damonge.com/sitemap.xml\n",
+    );
+    const sitemap = await readFile(path.join(tempRoot, "dist", "sitemap.xml"), "utf8");
+    const sitemapUrls = sitemapLocs(sitemap);
+    assert.deepEqual(sitemapUrls, [
+      "https://app.damonge.com/",
+      "https://app.damonge.com/amazon-link-cleaner-cloudflare/",
+      "https://app.damonge.com/sorting-visualizer-web/",
+      "https://app.damonge.com/image-compressor-web/",
+    ]);
+    for (const relativePath of [
+      "index.html",
+      "amazon-link-cleaner-cloudflare/index.html",
+      "sorting-visualizer-web/index.html",
+      "image-compressor-web/index.html",
+    ]) {
+      assert.equal(await exists(path.join(tempRoot, "dist", relativePath)), true, relativePath);
+    }
     for (const slug of [
       "amazon-link-cleaner-cloudflare",
       "sorting-visualizer-web",
       "image-compressor-web",
     ]) {
       assert.match(hubHtml, new RegExp(`href="/${slug}/"`));
-      assert.equal(await exists(path.join(tempRoot, "dist", slug, "index.html")), true);
     }
 
     const imageHtml = await readFile(
