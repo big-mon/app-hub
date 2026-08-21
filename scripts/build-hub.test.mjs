@@ -125,10 +125,29 @@ test("the image compressor registration has the requested node-tool contract", a
     title: "ローカルで画像をトリミング・圧縮",
     repo: "https://github.com/big-mon/image-compressor-web",
     type: "node",
-    build: "pnpm install --frozen-lockfile && pnpm run build",
+    build: "pnpm --ignore-workspace install --frozen-lockfile && pnpm run build",
     outDir: "dist",
     basePathEnv: "BASE_PATH",
   });
+});
+
+test("the repository owns a pinned Wrangler and gates CI on its availability", async () => {
+  const packageJson = JSON.parse(await readFile(path.join(REPO_ROOT, "package.json"), "utf8"));
+  const workspaceSource = (await readFile(path.join(REPO_ROOT, "pnpm-workspace.yaml"), "utf8").catch(() => ""))
+    .replace(/\r\n?/g, "\n");
+  const ciSource = await readFile(path.join(REPO_ROOT, ".github", "workflows", "ci.yml"), "utf8");
+  const installIndex = ciSource.indexOf("- name: Install dependencies");
+  const wranglerIndex = ciSource.indexOf("- name: Verify Wrangler availability");
+  const testIndex = ciSource.indexOf("- name: Test");
+  const hasWranglerAvailabilityGate =
+    /- name: Verify Wrangler availability\s*\n\s+run: pnpm exec wrangler --version/.test(ciSource) &&
+    installIndex >= 0 &&
+    wranglerIndex > installIndex &&
+    testIndex > wranglerIndex;
+
+  assert.equal(workspaceSource, "allowBuilds:\n  esbuild: true\n  workerd: true\n");
+  assert.equal(packageJson.devDependencies?.wrangler, "4.124.0");
+  assert.equal(hasWranglerAvailabilityGate, true);
 });
 
 test("the current static and node shapes pass manifest validation", () => {

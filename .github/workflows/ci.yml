@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify Wrangler availability
+        run: pnpm exec wrangler --version
+
       - name: Test
         run: pnpm test
 

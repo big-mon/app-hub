@@ -11,5 +11,8 @@
     "test": "node --test scripts/*.test.mjs",
     "build": "node scripts/build-hub.mjs",
     "check": "pnpm test && pnpm run build"
+  },
+  "devDependencies": {
+    "wrangler": "4.124.0"
   }
 }
