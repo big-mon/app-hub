@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import {
   access,
   chmod,
+  copyFile,
   mkdir,
   mkdtemp,
   readFile,
@@ -41,6 +42,11 @@ async function runBuildWithTools(tools) {
   await writeFile(path.join(tempRoot, "tools.json"), `${JSON.stringify(tools)}\n`);
   await writeFile(path.join(tempRoot, "index.html"), "<!-- TOOL_LINKS -->\n");
   await writeFile(path.join(tempRoot, "styles.css"), "");
+  await mkdir(path.join(tempRoot, "scripts"), { recursive: true });
+  await copyFile(
+    path.join(REPO_ROOT, "scripts", "pages-worker.mjs"),
+    path.join(tempRoot, "scripts", "pages-worker.mjs"),
+  );
 
   const result = spawnSync(process.execPath, [SCRIPT_PATH], {
     cwd: tempRoot,
@@ -90,6 +96,11 @@ async function runFixtureBuild(tools, fakeGitScript, extraEnv = {}, timeout = 5_
   await writeFile(path.join(tempRoot, "tools.json"), `${JSON.stringify(tools)}\n`);
   await writeFile(path.join(tempRoot, "index.html"), "<!-- TOOL_LINKS -->\n");
   await writeFile(path.join(tempRoot, "styles.css"), "");
+  await mkdir(path.join(tempRoot, "scripts"), { recursive: true });
+  await copyFile(
+    path.join(REPO_ROOT, "scripts", "pages-worker.mjs"),
+    path.join(tempRoot, "scripts", "pages-worker.mjs"),
+  );
 
   const result = spawnSync(process.execPath, [SCRIPT_PATH], {
     cwd: tempRoot,
@@ -744,6 +755,10 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
     ]) {
       assert.equal(await exists(path.join(tempRoot, "dist", relativePath)), true, relativePath);
     }
+    assert.equal(
+      await readFile(path.join(tempRoot, "dist", "_worker.js"), "utf8"),
+      await readFile(path.join(REPO_ROOT, "scripts", "pages-worker.mjs"), "utf8"),
+    );
     for (const slug of [
       "amazon-link-cleaner-cloudflare",
       "sorting-visualizer-web",
