@@ -69,6 +69,16 @@ test("keeps non-control form content while dropping form controls", () => {
   assert.doesNotMatch(markdown, /Do not keep/);
 });
 
+test("drops raw-text/RCDATA contents without swallowing following HTML", () => {
+  for (const element of ["script", "style", "textarea", "title"]) {
+    const markdown = htmlToMarkdown(
+      `<${element}>for (let i = 0; i < 10; i++) {}</${element}><main><h1>Visible</h1></main>`,
+    );
+
+    assert.equal(markdown, "# Visible\n", element);
+  }
+});
+
 test("separates adjacent generic block containers", () => {
   const markdown = htmlToMarkdown(
     "<div>First</div><div>Second</div><dl><dt>Term</dt><dd>Meaning</dd></dl>",
@@ -81,6 +91,12 @@ test("escapes Markdown-looking syntax from ordinary text nodes", () => {
   const markdown = htmlToMarkdown("<p># literal [label](target) ~~literal~~</p>");
 
   assert.equal(markdown, "\\# literal \\[label\\]\\(target\\) \\~\\~literal\\~\\~\n");
+});
+
+test("escapes Markdown-looking syntax in image alt text", () => {
+  const markdown = htmlToMarkdown('<p><img alt="[Click](https://evil.test)"></p>');
+
+  assert.equal(markdown, "\\[Click\\]\\(https://evil.test\\)\n");
 });
 
 test("converts only successful HTML GET responses and preserves Vary dimensions", async () => {

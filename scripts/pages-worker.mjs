@@ -40,6 +40,7 @@ const DROPPED_ELEMENTS = new Set([
   "textarea",
   "title",
 ]);
+const RAW_TEXT_ELEMENTS = new Set(["script", "style", "textarea", "title"]);
 const BLOCK_ELEMENTS = new Set([
   "address",
   "article",
@@ -206,6 +207,13 @@ function parseTag(source) {
   };
 }
 
+function findRawTextEnd(html, start, name) {
+  const closingPattern = new RegExp(`<\\s*/\\s*${name}\\s*>`, "ig");
+  closingPattern.lastIndex = start;
+  const closing = closingPattern.exec(html);
+  return closing ? closing.index + closing[0].length : html.length;
+}
+
 function parseHtml(html) {
   const root = { type: "element", name: "root", attributes: {}, children: [] };
   const stack = [root];
@@ -255,6 +263,10 @@ function parseHtml(html) {
       children: [],
     };
     stack.at(-1).children.push(node);
+    if (!tag.selfClosing && RAW_TEXT_ELEMENTS.has(tag.name)) {
+      cursor = findRawTextEnd(html, cursor, tag.name);
+      continue;
+    }
     if (!tag.selfClosing && !VOID_ELEMENTS.has(tag.name)) stack.push(node);
   }
 
@@ -351,7 +363,7 @@ function renderInline(node, baseUrl) {
     case "i":
       return `*${children().trim()}*`;
     case "img":
-      return normalizeInlineText(node.attributes.alt ?? "");
+      return escapeMarkdownText(normalizeInlineText(node.attributes.alt ?? ""));
     default:
       return children();
   }
