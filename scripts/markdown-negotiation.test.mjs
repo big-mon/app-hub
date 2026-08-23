@@ -53,6 +53,36 @@ test("converts meaningful HTML to Markdown and removes page chrome", () => {
   assert.doesNotMatch(markdown, /(?:Chrome badge|the docs\/docs|Ignore (?:navigation|footer|script))/i);
 });
 
+test("keeps non-control form content while dropping form controls", () => {
+  const markdown = htmlToMarkdown(
+    `<form>
+      <h1>Guide</h1>
+      <p>Keep me</p>
+      <input value="Do not keep">
+      <button>Do not keep</button>
+      <select><option>Do not keep</option></select>
+      <textarea>Do not keep</textarea>
+    </form>`,
+  );
+
+  assert.equal(markdown, "# Guide\n\nKeep me\n");
+  assert.doesNotMatch(markdown, /Do not keep/);
+});
+
+test("separates adjacent generic block containers", () => {
+  const markdown = htmlToMarkdown(
+    "<div>First</div><div>Second</div><dl><dt>Term</dt><dd>Meaning</dd></dl>",
+  );
+
+  assert.equal(markdown, "First\n\nSecond\n\nTerm\n\nMeaning\n");
+});
+
+test("escapes Markdown-looking syntax from ordinary text nodes", () => {
+  const markdown = htmlToMarkdown("<p># literal [label](target) ~~literal~~</p>");
+
+  assert.equal(markdown, "\\# literal \\[label\\]\\(target\\) \\~\\~literal\\~\\~\n");
+});
+
 test("converts only successful HTML GET responses and preserves Vary dimensions", async () => {
   const original = new Response(
     "<main><h1>Welcome</h1><p>Readable content.</p></main>",
@@ -122,9 +152,33 @@ test("converts only successful HTML GET responses and preserves Vary dimensions"
   }
 });
 
+test("passes through partial HTML responses unchanged during Markdown negotiation", async () => {
+  const partial = new Response("<h1>Partial</h1>", {
+    status: 206,
+    headers: {
+      "Content-Type": "text/html; charset=UTF-8",
+      "Content-Range": "bytes 0-15/16",
+      Vary: "Origin",
+    },
+  });
+
+  const returned = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    partial,
+  );
+
+  assert.strictEqual(returned, partial);
+  assert.equal(returned.status, 206);
+  assert.equal(returned.headers.get("Content-Range"), "bytes 0-15/16");
+  assert.equal(returned.headers.get("Content-Type"), "text/html; charset=UTF-8");
+  assert.equal(await returned.text(), "<h1>Partial</h1>");
+});
+
 test("adds Accept variation to successful HTML GET responses without Markdown selection", async () => {
   const defaultResponse = new Response("<h1>Default HTML</h1>", {
-    status: 203,
+    status: 200,
     headers: {
       "Content-Type": "text/html; charset=UTF-8",
       Vary: "Origin",
@@ -134,7 +188,7 @@ test("adds Accept variation to successful HTML GET responses without Markdown se
     new Request("https://example.test/"),
     defaultResponse,
   );
-  assert.equal(defaultHtml.status, 203);
+  assert.equal(defaultHtml.status, 200);
   assert.equal(defaultHtml.headers.get("Content-Type"), "text/html; charset=UTF-8");
   assert.equal(defaultHtml.headers.get("Vary"), "Origin, Accept");
   assert.equal(await defaultHtml.text(), "<h1>Default HTML</h1>");

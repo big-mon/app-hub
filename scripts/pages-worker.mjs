@@ -23,7 +23,6 @@ const DROPPED_ELEMENTS = new Set([
   "canvas",
   "embed",
   "footer",
-  "form",
   "head",
   "iframe",
   "input",
@@ -51,6 +50,7 @@ const BLOCK_ELEMENTS = new Set([
   "dt",
   "figcaption",
   "figure",
+  "form",
   "h1",
   "h2",
   "h3",
@@ -282,8 +282,28 @@ function normalizeInlineText(value) {
   return value.replace(/\s+/g, " ");
 }
 
+function escapeMarkdownText(value) {
+  const escaped = value
+    .replace(/\\/g, "\\\\")
+    .replace(/([`*_{}\[\]()<>])/g, "\\$1")
+    .replace(/~~/g, "\\~\\~");
+
+  return escaped
+    .replace(
+      /(^|\n)([ \t]{0,3})(?=#{1,6}(?:\s|$)|>(?:[ \t]|$)|[+-](?:[ \t]|$)|-{3,}(?:\s|$))/g,
+      (match, lineBreak, indentation) => `${lineBreak}${indentation}\\`,
+    )
+    .replace(
+      /(^|\n)([ \t]{0,3}\d{1,9})\.(?=\s)/g,
+      (match, lineBreak, prefix) => `${lineBreak}${prefix}\\.`,
+    )
+    .replace(/(^|\n)([ \t]{0,3})(?=={3,}(?:\s|$))/g, (match, lineBreak, indentation) => (
+      `${lineBreak}${indentation}\\`
+    ));
+}
+
 function escapeLinkLabel(value) {
-  return value.replace(/([\\[\]])/g, "\\$1");
+  return value.replace(/(?<!\\)([\[\]])/g, "\\$1");
 }
 
 function resolveLink(value, baseUrl) {
@@ -299,7 +319,9 @@ function resolveLink(value, baseUrl) {
 }
 
 function renderInline(node, baseUrl) {
-  if (node.type === "text") return normalizeInlineText(decodeHtmlEntities(node.value));
+  if (node.type === "text") {
+    return escapeMarkdownText(normalizeInlineText(decodeHtmlEntities(node.value)));
+  }
   if (shouldDrop(node)) return "";
 
   const children = () => node.children.map((child) => renderInline(child, baseUrl)).join("");
@@ -410,7 +432,10 @@ function renderBlock(node, baseUrl) {
       : "";
   }
   if (node.name === "hr") return "\n---\n\n";
-  if (BLOCK_ELEMENTS.has(node.name)) return renderChildren(node, baseUrl);
+  if (BLOCK_ELEMENTS.has(node.name)) {
+    const value = renderChildren(node, baseUrl).trim();
+    return value ? `\n${value}\n\n` : "";
+  }
   return renderInline(node, baseUrl);
 }
 
@@ -452,7 +477,7 @@ function isHtmlResponse(response) {
 export async function negotiateMarkdown(request, response) {
   if (
     request.method !== "GET" ||
-    !response.ok ||
+    response.status !== 200 ||
     !isHtmlResponse(response)
   ) {
     return response;
