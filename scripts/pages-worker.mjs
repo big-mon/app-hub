@@ -457,8 +457,10 @@ function renderInlineSiblings(nodes, baseUrl) {
         index += 1;
       } while (
         index < nodes.length
-        && nodes[index].type === "element"
-        && nodes[index].name === "code"
+        && (
+          (nodes[index].type === "element" && nodes[index].name === "code")
+          || renderInline(nodes[index], baseUrl) === ""
+        )
       );
       rendered += renderInlineCode(value);
       continue;
@@ -851,8 +853,10 @@ function attributeValue(source, name) {
 
 function sniffMetaCharset(bytes) {
   const prefix = asciiPrefix(bytes).replace(/<!--[\s\S]*?(?:-->|$)/g, "");
-  for (const match of prefix.matchAll(/<meta\b[^>]*>/gi)) {
-    const tag = match[0];
+  for (const match of prefix.matchAll(/<meta\b/gi)) {
+    const tagEnd = findTagEnd(prefix, match.index + 1);
+    if (tagEnd < 0) continue;
+    const tag = prefix.slice(match.index, tagEnd + 1);
     const charset = attributeValue(tag, "charset");
     if (charset !== null) return charset;
 

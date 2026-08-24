@@ -564,6 +564,13 @@ test("merges adjacent inline code spans without changing visible whitespace", ()
   );
 });
 
+test("merges inline code spans across empty rendered siblings", () => {
+  assert.equal(
+    htmlToMarkdown("<p><code>a</code><span hidden>x</span><code>b</code></p>"),
+    "``ab``\n",
+  );
+});
+
 test("merges adjacent inline code spans in list items", () => {
   assert.equal(
     htmlToMarkdown("<ul><li><code>a</code><code>b</code></li></ul>"),
@@ -663,6 +670,23 @@ test("uses an early HTML meta charset when Content-Type omits charset", async ()
     new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
   );
 
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("recognizes quoted greater-than delimiters while sniffing meta charset", async () => {
+  const originalBytes = Uint8Array.from([
+    ...new TextEncoder().encode('<meta data-note=">" charset="windows-1252"><main><p>Caf'),
+    0xe9,
+    ...new TextEncoder().encode("</p></main>"),
+  ]);
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
   assert.equal(await response.text(), "Café\n");
 });
 
