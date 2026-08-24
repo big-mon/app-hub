@@ -437,6 +437,14 @@ function wrapInline(value, opening, closing) {
   return content ? `${leading}${opening}${content}${closing}${trailing}` : value;
 }
 
+function inlineWrapperMarker(node) {
+  if (node.type !== "element") return null;
+  if (node.name === "em" || node.name === "i") return "*";
+  if (node.name === "strong" || node.name === "b") return "**";
+  if (node.name === "del" || node.name === "s" || node.name === "strike") return "~~";
+  return null;
+}
+
 function renderInlineCode(value) {
   const normalizedValue = normalizeInlineText(value);
   const { content } = splitInlineBoundary(normalizedValue);
@@ -465,6 +473,27 @@ function renderInlineSiblings(nodes, baseUrl) {
       rendered += renderInlineCode(value);
       continue;
     }
+
+    const marker = inlineWrapperMarker(child);
+    if (marker) {
+      let value = renderInline(child, baseUrl);
+      let nextIndex = index + 1;
+      while (value.endsWith(marker) && nextIndex < nodes.length) {
+        const sibling = nodes[nextIndex];
+        const siblingRendered = renderInline(sibling, baseUrl);
+        if (siblingRendered === "") {
+          nextIndex += 1;
+          continue;
+        }
+        if (inlineWrapperMarker(sibling) !== marker || !siblingRendered.startsWith(marker)) break;
+        value = value.slice(0, -marker.length) + siblingRendered.slice(marker.length);
+        nextIndex += 1;
+      }
+      rendered += value;
+      index = nextIndex;
+      continue;
+    }
+
     rendered += renderInline(child, baseUrl);
     index += 1;
   }
@@ -853,7 +882,7 @@ function attributeValue(source, name) {
 
 function sniffMetaCharset(bytes) {
   const prefix = asciiPrefix(bytes).replace(/<!--[\s\S]*?(?:-->|$)/g, "");
-  for (const match of prefix.matchAll(/<meta\b/gi)) {
+  for (const match of prefix.matchAll(/<meta(?=[\t\n\f\r />])/gi)) {
     const tagEnd = findTagEnd(prefix, match.index + 1);
     if (tagEnd < 0) continue;
     const tag = prefix.slice(match.index, tagEnd + 1);

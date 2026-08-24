@@ -542,6 +542,18 @@ test("preserves boundary whitespace around inline Markdown wrappers", () => {
   }
 });
 
+test("merges adjacent generated inline wrappers without touching delimiter runs", () => {
+  for (const [source, expected] of [
+    ["<p><em>a</em><em>b</em></p>", "*ab*\n"],
+    ["<p><strong>a</strong><b>b</b></p>", "**ab**\n"],
+    ["<p><del>a</del><s>b</s></p>", "~~ab~~\n"],
+    ["<p><em>a</em><span hidden>x</span><em>b</em></p>", "*ab*\n"],
+    ["<p><em>a</em> <em>b</em></p>", "*a* *b*\n"],
+  ]) {
+    assert.equal(htmlToMarkdown(source), expected, source);
+  }
+});
+
 test("preserves edge backticks in inline code", () => {
   assert.equal(htmlToMarkdown("<p><code>`foo`</code></p>"), "`` `foo` ``\n");
 });
@@ -663,6 +675,20 @@ test("uses an early HTML meta charset when Content-Type omits charset", async ()
     0xe9,
     ...new TextEncoder().encode("</p></main>"),
   ]);
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("requires an exact HTML meta start tag when sniffing charset", async () => {
+  const originalBytes = new TextEncoder().encode(
+    '<meta-widget charset="windows-1252"><meta charset="utf-8"><p>Café</p>',
+  );
   const response = await negotiateMarkdown(
     new Request("https://example.test/", {
       headers: { Accept: "text/markdown" },
