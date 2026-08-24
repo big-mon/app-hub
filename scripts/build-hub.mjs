@@ -226,7 +226,7 @@ export function escapeHtml(value) {
 }
 
 export function renderRobots() {
-  return `User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`;
+  return `User-agent: *\nContent-Signal: ai-train=no, search=yes, ai-input=yes\nAllow: /\n\nSitemap: ${SITE_ORIGIN}/sitemap.xml\n`;
 }
 
 export function renderSitemap(tools = []) {

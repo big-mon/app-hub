@@ -161,7 +161,7 @@ test("the repository owns a pinned Wrangler and gates CI on its availability", a
     testIndex > wranglerIndex;
 
   assert.equal(workspaceSource, "allowBuilds:\n  esbuild: true\n  workerd: true\n");
-  assert.equal(packageJson.devDependencies?.wrangler, "4.124.0");
+  assert.equal(packageJson.devDependencies?.wrangler, "4.125.0");
   assert.equal(hasWranglerAvailabilityGate, true);
 });
 
@@ -584,7 +584,7 @@ test("index rendering escapes labels and preserves name/title fallback behavior"
 test("robots rendering points crawlers to the absolute sitemap", () => {
   assert.equal(
     hub.renderRobots(),
-    "User-agent: *\nAllow: /\n\nSitemap: https://app.damonge.com/sitemap.xml\n",
+    "User-agent: *\nContent-Signal: ai-train=no, search=yes, ai-input=yes\nAllow: /\n\nSitemap: https://app.damonge.com/sitemap.xml\n",
   );
 });
 
@@ -737,7 +737,7 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
     const hubHtml = await readFile(path.join(tempRoot, "dist", "index.html"), "utf8");
     assert.equal(
       await readFile(path.join(tempRoot, "dist", "robots.txt"), "utf8"),
-      "User-agent: *\nAllow: /\n\nSitemap: https://app.damonge.com/sitemap.xml\n",
+      "User-agent: *\nContent-Signal: ai-train=no, search=yes, ai-input=yes\nAllow: /\n\nSitemap: https://app.damonge.com/sitemap.xml\n",
     );
     const sitemap = await readFile(path.join(tempRoot, "dist", "sitemap.xml"), "utf8");
     const sitemapUrls = sitemapLocs(sitemap);
