@@ -388,11 +388,12 @@ function renderInline(node, baseUrl) {
     case "br":
       return "\n";
     case "code": {
-      const value = textContent(node, true).replace(/\s+/g, " ").trim();
-      const run = Math.max(1, ...[...value.matchAll(/`+/g)].map((match) => match[0].length)) + 1;
+      const value = textContent(node, true).replace(/\s+/g, " ");
+      const { content } = splitInlineBoundary(value);
+      const run = Math.max(1, ...[...content.matchAll(/`+/g)].map((match) => match[0].length)) + 1;
       const fence = "`".repeat(run);
-      const padding = value.startsWith("`") || value.endsWith("`") ? " " : "";
-      return `${fence}${padding}${value}${padding}${fence}`;
+      const padding = content.startsWith("`") || content.endsWith("`") ? " " : "";
+      return wrapInline(value, `${fence}${padding}`, `${padding}${fence}`);
     }
     case "del":
     case "s":
@@ -458,8 +459,14 @@ function renderList(node, baseUrl, indent = "") {
       continue;
     }
     const marker = ordered ? `${itemNumber}. ` : "- ";
-    const content = [];
+    const blocks = [];
+    const inline = [];
     const nested = [];
+    const flushInline = () => {
+      const label = inline.join("").replace(/\s+/g, " ").trim();
+      if (label) blocks.push(label);
+      inline.length = 0;
+    };
     for (const item of child.children) {
       if (item.type === "element" && (item.name === "ul" || item.name === "ol")) {
         nested.push(
@@ -467,14 +474,29 @@ function renderList(node, baseUrl, indent = "") {
             .replace(/^\n+/, "")
             .replace(/\n+$/, ""),
         );
+      } else if (item.type === "element" && BLOCK_ELEMENTS.has(item.name)) {
+        flushInline();
+        const value = renderBlock(item, baseUrl)
+          .replace(/^\n+/, "")
+          .replace(/\n+$/, "");
+        if (value.trim()) blocks.push(value);
       } else {
-        content.push(renderInline(item, baseUrl));
+        inline.push(renderInline(item, baseUrl));
       }
     }
 
-    const label = content.join("").replace(/\s+/g, " ").trim();
-    if (label || nested.length > 0) {
-      lines.push(`${indent}${marker}${label}`.trimEnd());
+    flushInline();
+    if (blocks.length > 0 || nested.length > 0) {
+      if (blocks.length > 0) {
+        const contentLines = blocks.join("\n\n").split("\n");
+        lines.push(`${indent}${marker}${contentLines.shift()}`.trimEnd());
+        const continuationIndent = `${indent}${" ".repeat(marker.length)}`;
+        for (const line of contentLines) {
+          lines.push(line ? `${continuationIndent}${line}` : "");
+        }
+      } else {
+        lines.push(`${indent}${marker}`.trimEnd());
+      }
       for (const nestedList of nested) {
         if (nestedList) lines.push(nestedList);
       }

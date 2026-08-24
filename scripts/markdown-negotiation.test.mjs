@@ -159,6 +159,13 @@ test("indents nested lists by the containing marker width", () => {
   );
 });
 
+test("preserves paragraph boundaries within list items", () => {
+  assert.equal(
+    htmlToMarkdown("<ul><li><p>First</p><p>Second</p></li></ul>"),
+    "- First\n\n  Second\n",
+  );
+});
+
 test("escapes Markdown-looking syntax from ordinary text nodes", () => {
   const markdown = htmlToMarkdown("<p># literal [label](target) ~~literal~~</p>");
 
@@ -226,6 +233,13 @@ test("preserves boundary whitespace around inline Markdown wrappers", () => {
 
 test("preserves edge backticks in inline code", () => {
   assert.equal(htmlToMarkdown("<p><code>`foo`</code></p>"), "`` `foo` ``\n");
+});
+
+test("preserves boundary whitespace around inline code", () => {
+  assert.equal(
+    htmlToMarkdown("<p>Hello<code> world </code>today</p>"),
+    "Hello ``world`` today\n",
+  );
 });
 
 test("converts only successful HTML GET responses and preserves Vary dimensions", async () => {
