@@ -319,7 +319,7 @@ function escapeLinkLabel(value) {
 }
 
 function resolveLink(value, baseUrl) {
-  const href = decodeHtmlEntities(value).trim();
+  const href = decodeHtmlEntities(value ?? "").trim();
   if (!href) return null;
   try {
     const url = new URL(href, baseUrl);
@@ -350,7 +350,8 @@ function renderInline(node, baseUrl) {
       const value = textContent(node, true).replace(/\s+/g, " ").trim();
       const run = Math.max(1, ...[...value.matchAll(/`+/g)].map((match) => match[0].length)) + 1;
       const fence = "`".repeat(run);
-      return `${fence}${value}${fence}`;
+      const padding = value.startsWith("`") || value.endsWith("`") ? " " : "";
+      return `${fence}${padding}${value}${padding}${fence}`;
     }
     case "del":
     case "s":

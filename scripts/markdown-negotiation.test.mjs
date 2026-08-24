@@ -99,6 +99,14 @@ test("escapes Markdown-looking syntax in image alt text", () => {
   assert.equal(markdown, "\\[Click\\]\\(https://evil.test\\)\n");
 });
 
+test("preserves link text when href is missing", () => {
+  assert.equal(htmlToMarkdown("<p><a>Coming soon</a></p>"), "Coming soon\n");
+});
+
+test("preserves edge backticks in inline code", () => {
+  assert.equal(htmlToMarkdown("<p><code>`foo`</code></p>"), "`` `foo` ``\n");
+});
+
 test("converts only successful HTML GET responses and preserves Vary dimensions", async () => {
   const original = new Response(
     "<main><h1>Welcome</h1><p>Readable content.</p></main>",
