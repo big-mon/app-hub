@@ -792,7 +792,25 @@ export async function negotiateMarkdown(request, response) {
     });
   }
 
-  const markdown = htmlToMarkdown(await response.text(), request.url);
+  const contentType = response.headers.get("Content-Type") ?? "";
+  const charsetMatch = contentType.match(/;\s*charset\s*=\s*(?:"([^"]*)"|([^;\s]*))/i);
+  let html;
+  if (!charsetMatch) {
+    html = await response.text();
+  } else {
+    try {
+      const bytes = await response.clone().arrayBuffer();
+      html = new TextDecoder(charsetMatch[1] ?? charsetMatch[2], { fatal: true }).decode(bytes);
+    } catch {
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    }
+  }
+
+  const markdown = htmlToMarkdown(html, request.url);
   headers.set("Content-Type", `${MARKDOWN_MEDIA_TYPE}; charset=utf-8`);
   headers.delete("Content-Length");
   headers.delete("Content-Encoding");

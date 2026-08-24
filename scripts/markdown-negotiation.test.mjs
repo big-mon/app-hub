@@ -521,6 +521,89 @@ test("preserves boundary whitespace around inline code", () => {
   );
 });
 
+test("decodes raw windows-1252 HTML bytes before Markdown negotiation", async () => {
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(
+      Uint8Array.from([
+        0x3c, 0x6d, 0x61, 0x69, 0x6e, 0x3e, 0x3c, 0x70, 0x3e,
+        0x43, 0x61, 0x66, 0xe9,
+        0x3c, 0x2f, 0x70, 0x3e, 0x3c, 0x2f, 0x6d, 0x61, 0x69, 0x6e, 0x3e,
+      ]),
+      { headers: { "Content-Type": "text/html; charset=windows-1252" } },
+    ),
+  );
+
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("decodes quoted charset labels case-insensitively before Markdown negotiation", async () => {
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(
+      Uint8Array.from([
+        0x3c, 0x6d, 0x61, 0x69, 0x6e, 0x3e, 0x3c, 0x70, 0x3e,
+        0x43, 0x61, 0x66, 0xe9,
+        0x3c, 0x2f, 0x70, 0x3e, 0x3c, 0x2f, 0x6d, 0x61, 0x69, 0x6e, 0x3e,
+      ]),
+      { headers: { "Content-Type": 'TEXT/HTML; CHARSET="WINDOWS-1252"' } },
+    ),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("passes through original HTML bytes for an unsupported declared charset", async () => {
+  const originalBytes = Uint8Array.from([
+    0x3c, 0x6d, 0x61, 0x69, 0x6e, 0x3e, 0x3c, 0x70, 0x3e,
+    0x55, 0x6e, 0x73, 0x75, 0x70, 0x70, 0x6f, 0x72, 0x74, 0x65, 0x64,
+    0x3c, 0x2f, 0x70, 0x3e, 0x3c, 0x2f, 0x6d, 0x61, 0x69, 0x6e, 0x3e,
+  ]);
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, {
+      headers: { "Content-Type": "text/html; charset=x-unsupported" },
+    }),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/html; charset=x-unsupported");
+  assert.equal(response.headers.get("Vary"), "Accept");
+  assert.deepEqual(
+    Array.from(new Uint8Array(await response.arrayBuffer())),
+    Array.from(originalBytes),
+  );
+});
+
+test("passes through original HTML bytes when a recognized fatal decoder rejects them", async () => {
+  const originalBytes = Uint8Array.from([
+    0x3c, 0x6d, 0x61, 0x69, 0x6e, 0x3e, 0x3c, 0x70, 0x3e,
+    0x49, 0x6e, 0x76, 0x61, 0x6c, 0x69, 0x64, 0x20, 0xc3, 0x28,
+    0x3c, 0x2f, 0x70, 0x3e, 0x3c, 0x2f, 0x6d, 0x61, 0x69, 0x6e, 0x3e,
+  ]);
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, {
+      headers: { "Content-Type": "text/html; charset=UTF-8" },
+    }),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/html; charset=UTF-8");
+  assert.equal(response.headers.get("Vary"), "Accept");
+  assert.deepEqual(
+    Array.from(new Uint8Array(await response.arrayBuffer())),
+    Array.from(originalBytes),
+  );
+});
+
 test("converts only successful HTML GET responses and preserves Vary dimensions", async () => {
   const original = new Response(
     "<main><h1>Welcome</h1><p>Readable content.</p></main>",
