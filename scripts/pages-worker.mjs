@@ -209,11 +209,14 @@ function parseTag(source) {
   if (!opening) return null;
 
   const rawAttributes = opening[2];
-  const selfClosing = /\/\s*$/.test(rawAttributes);
+  const selfClosingMarker = rawAttributes.match(/(?:^|\s)\/\s*$/);
+  const selfClosing = Boolean(selfClosingMarker);
   return {
     closing: false,
     name: opening[1].toLowerCase(),
-    attributes: parseAttributes(rawAttributes.replace(/\/\s*$/, "")),
+    attributes: parseAttributes(
+      selfClosingMarker ? rawAttributes.slice(0, selfClosingMarker.index) : rawAttributes,
+    ),
     selfClosing,
   };
 }
@@ -726,6 +729,7 @@ export async function negotiateMarkdown(request, response) {
   headers.delete("ETag");
   headers.delete("Last-Modified");
   headers.delete("Transfer-Encoding");
+  headers.delete("Accept-Ranges");
 
   return new Response(markdown, {
     status: response.status,

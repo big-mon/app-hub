@@ -64,6 +64,21 @@ test("resolves links against the first valid document base", () => {
   );
 });
 
+test("preserves trailing slashes in unquoted URL attributes and separate self-closing markers", () => {
+  assert.equal(
+    htmlToMarkdown('<p><a href=/docs/>Home</a></p>', "https://example.test/"),
+    "[Home](https://example.test/docs/)\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<base href=/docs/><p><a href=guide>Guide</a></p>', "https://example.test/"),
+    "[Guide](https://example.test/docs/guide)\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<base href=/docs /><p><a href=guide>Guide</a><br/>Next</p>', "https://example.test/"),
+    "[Guide](https://example.test/guide)\\\nNext\n",
+  );
+});
+
 test("closes an unclosed head before attaching an explicit body", () => {
   assert.equal(
     htmlToMarkdown("<html><head><title>x</title><body><h1>Visible</h1>"),
@@ -463,6 +478,22 @@ test("converts only successful HTML GET responses and preserves Vary dimensions"
     assert.strictEqual(await negotiateMarkdown(request, response), response);
     assert.equal(response.headers.get("Vary"), null);
   }
+});
+
+test("removes Accept-Ranges from transformed Markdown responses", async () => {
+  const converted = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response("<h1>Welcome</h1>", {
+      headers: {
+        "Content-Type": "text/html",
+        "Accept-Ranges": "bytes",
+      },
+    }),
+  );
+
+  assert.equal(converted.headers.get("Accept-Ranges"), null);
 });
 
 test("passes through partial HTML responses unchanged during Markdown negotiation", async () => {
