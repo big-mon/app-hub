@@ -64,6 +64,20 @@ test("resolves links against the first valid document base", () => {
   );
 });
 
+test("closes an unclosed head before attaching an explicit body", () => {
+  assert.equal(
+    htmlToMarkdown("<html><head><title>x</title><body><h1>Visible</h1>"),
+    "# Visible\n",
+  );
+});
+
+test("closes an unclosed head before attaching implicit body content", () => {
+  assert.equal(
+    htmlToMarkdown("<html><head><title>x</title><h1>Visible</h1>"),
+    "# Visible\n",
+  );
+});
+
 test("decodes WHATWG character references in text and attributes", () => {
   const markdown = htmlToMarkdown(
     `<p>Common &copy; and multi-code-point &NotEqualTilde; and text &copy=1.</p>

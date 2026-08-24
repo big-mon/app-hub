@@ -43,6 +43,16 @@ const DROPPED_ELEMENTS = new Set([
   "title",
 ]);
 const RAW_TEXT_ELEMENTS = new Set(["script", "style", "textarea", "title", "iframe"]);
+const HEAD_METADATA_ELEMENTS = new Set([
+  "base",
+  "link",
+  "meta",
+  "noscript",
+  "script",
+  "style",
+  "template",
+  "title",
+]);
 const BLOCK_ELEMENTS = new Set([
   "address",
   "article",
@@ -216,6 +226,10 @@ function findRawTextEnd(html, start, name) {
 }
 
 function closeImpliedElements(stack, name) {
+  if (stack.at(-1)?.name === "head" && !HEAD_METADATA_ELEMENTS.has(name)) {
+    stack.pop();
+  }
+
   const impliedGroup = name === "li"
     ? LIST_ITEM_END_TAGS
     : name === "dt" || name === "dd"
@@ -253,6 +267,7 @@ function parseHtml(html) {
   let cursor = 0;
 
   const appendText = (value) => {
+    if (value.trim() && stack.at(-1)?.name === "head") stack.pop();
     if (value) stack.at(-1).children.push({ type: "text", value });
   };
 
