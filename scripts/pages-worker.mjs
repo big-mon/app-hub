@@ -48,9 +48,11 @@ const BLOCK_ELEMENTS = new Set([
   "article",
   "blockquote",
   "dd",
+  "details",
   "div",
   "dl",
   "dt",
+  "fieldset",
   "figcaption",
   "figure",
   "form",
@@ -65,11 +67,13 @@ const BLOCK_ELEMENTS = new Set([
   "html",
   "hr",
   "li",
+  "legend",
   "main",
   "ol",
   "p",
   "pre",
   "section",
+  "summary",
   "table",
   "caption",
   "thead",
@@ -327,7 +331,7 @@ function normalizeInlineText(value) {
 function escapeMarkdownText(value) {
   const escaped = value
     .replace(/\\/g, "\\\\")
-    .replace(/([`*_{}\[\]()<>])/g, "\\$1")
+    .replace(/([`*_{}\[\]()<>!])/g, "\\$1")
     .replace(/~~/g, "\\~\\~");
 
   return escaped

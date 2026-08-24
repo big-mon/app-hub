@@ -113,6 +113,21 @@ test("separates adjacent generic block containers", () => {
   assert.equal(markdown, "First\n\nSecond\n\nTerm\n\nMeaning\n");
 });
 
+test("preserves details and fieldset boundaries", () => {
+  assert.equal(
+    htmlToMarkdown(
+      "<details><summary>First summary</summary><p>First details</p></details>"
+        + "<details><summary>Second summary</summary><p>Second details</p></details>"
+        + "<fieldset><legend>First legend</legend><p>First fieldset</p></fieldset>"
+        + "<fieldset><legend>Second legend</legend><p>Second fieldset</p></fieldset>",
+    ),
+    "First summary\n\nFirst details\n\n"
+      + "Second summary\n\nSecond details\n\n"
+      + "First legend\n\nFirst fieldset\n\n"
+      + "Second legend\n\nSecond fieldset\n",
+  );
+});
+
 test("preserves table cell and row boundaries", () => {
   assert.equal(
     htmlToMarkdown(
@@ -270,6 +285,13 @@ test("escapes Markdown-looking syntax from ordinary text nodes", () => {
   const markdown = htmlToMarkdown("<p># literal [label](target) ~~literal~~</p>");
 
   assert.equal(markdown, "\\# literal \\[label\\]\\(target\\) \\~\\~literal\\~\\~\n");
+});
+
+test("escapes exclamation marks before generated links", () => {
+  assert.equal(
+    htmlToMarkdown('<p>Alert!<a href="/warning">warning</a></p>'),
+    "Alert\\![warning](https://example.invalid/warning)\n",
+  );
 });
 
 test("escapes Markdown-looking syntax in image alt text", () => {
