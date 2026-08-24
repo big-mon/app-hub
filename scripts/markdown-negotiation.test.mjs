@@ -102,6 +102,24 @@ test("separates adjacent generic block containers", () => {
   assert.equal(markdown, "First\n\nSecond\n\nTerm\n\nMeaning\n");
 });
 
+test("preserves table cell and row boundaries", () => {
+  assert.equal(
+    htmlToMarkdown(
+      "<table><tr><td>Alpha</td><td>Beta</td></tr><tr><td>Gamma</td><td>Delta</td></tr></table>",
+    ),
+    "Alpha\n\nBeta\n\nGamma\n\nDelta\n",
+  );
+});
+
+test("preserves table caption, section, header, and footer boundaries", () => {
+  assert.equal(
+    htmlToMarkdown(
+      "<table><caption>Caption</caption><thead><tr><th>Head A</th><th>Head B</th></tr></thead><tbody><tr><td>Body A</td><td>Body B</td></tr></tbody><tfoot><tr><td>Foot A</td><td>Foot B</td></tr></tfoot></table>",
+    ),
+    "Caption\n\nHead A\n\nHead B\n\nBody A\n\nBody B\n\nFoot A\n\nFoot B\n",
+  );
+});
+
 test("applies supported HTML implied end tags before nesting", () => {
   assert.equal(htmlToMarkdown("<ul><li>one<li>two</ul>"), "- one\n- two\n");
   assert.equal(htmlToMarkdown("<p>one<p>two"), "one\n\ntwo\n");
@@ -144,6 +162,31 @@ test("preserves reversed numbering across dropped list items", () => {
   );
 });
 
+test("keeps negative ordered values visible with valid Markdown markers", () => {
+  assert.equal(
+    htmlToMarkdown('<ol start="-1"><li>minus one<li>zero<li>one</ol>'),
+    "- -1. minus one\n0. zero\n1. one\n",
+  );
+});
+
+test("keeps large negative ordered values and nested indentation BigInt-safe", () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<ol><li value="-90071992547409931234567890">huge<ul><li>child</li></ul></li><li>next</li></ol>',
+    ),
+    "- -90071992547409931234567890. huge\n"
+      + "  - child\n"
+      + "- -90071992547409931234567889. next\n",
+  );
+});
+
+test("emits a negative ordered marker before a first nested list", () => {
+  assert.equal(
+    htmlToMarkdown('<ol start="-1"><li><ul><li>child</li></ul>after</li></ol>'),
+    "- -1.\n  - child\n  after\n",
+  );
+});
+
 test("indents nested lists by the containing marker width", () => {
   assert.equal(
     htmlToMarkdown("<ul><li>parent<ul><li>child</li></ul></li></ul>"),
@@ -156,6 +199,22 @@ test("indents nested lists by the containing marker width", () => {
   assert.equal(
     htmlToMarkdown('<ol start="10"><li>parent<ul><li>child</li></ul></li></ol>'),
     "10. parent\n    - child\n",
+  );
+});
+
+test("preserves source order around nested lists", () => {
+  assert.equal(
+    htmlToMarkdown("<ul><li>before<ul><li>child</li></ul>after</li></ul>"),
+    "- before\n  - child\n  after\n",
+  );
+});
+
+test("preserves order across multiple nested and block children", () => {
+  assert.equal(
+    htmlToMarkdown(
+      "<ul><li>before<p>middle</p><ul><li>child</li></ul>between<ol><li>second</li></ol>after</li></ul>",
+    ),
+    "- before\n\n  middle\n\n  - child\n  between\n  1. second\n  after\n",
   );
 });
 

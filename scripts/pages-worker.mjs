@@ -71,6 +71,13 @@ const BLOCK_ELEMENTS = new Set([
   "pre",
   "section",
   "table",
+  "caption",
+  "thead",
+  "tbody",
+  "tfoot",
+  "tr",
+  "th",
+  "td",
   "body",
   "ul",
 ]);
@@ -458,47 +465,68 @@ function renderList(node, baseUrl, indent = "") {
       if (ordered) number = itemNumber + step;
       continue;
     }
-    const marker = ordered ? `${itemNumber}. ` : "- ";
-    const blocks = [];
+    const negativeOrdered = ordered && itemNumber < 0n;
+    const marker = negativeOrdered ? "- " : ordered ? `${itemNumber}. ` : "- ";
+    const labelPrefix = negativeOrdered ? `${itemNumber}. ` : "";
+    const content = [];
     const inline = [];
-    const nested = [];
     const flushInline = () => {
       const label = inline.join("").replace(/\s+/g, " ").trim();
-      if (label) blocks.push(label);
+      if (label) content.push({ type: "inline", value: label });
       inline.length = 0;
     };
     for (const item of child.children) {
       if (item.type === "element" && (item.name === "ul" || item.name === "ol")) {
-        nested.push(
-          renderList(item, baseUrl, `${indent}${" ".repeat(marker.length)}`)
-            .replace(/^\n+/, "")
-            .replace(/\n+$/, ""),
-        );
+        flushInline();
+        const value = renderList(item, baseUrl, `${indent}${" ".repeat(marker.length)}`)
+          .replace(/^\n+/, "")
+          .replace(/\n+$/, "");
+        if (value) content.push({ type: "nested", value });
       } else if (item.type === "element" && BLOCK_ELEMENTS.has(item.name)) {
         flushInline();
         const value = renderBlock(item, baseUrl)
           .replace(/^\n+/, "")
           .replace(/\n+$/, "");
-        if (value.trim()) blocks.push(value);
+        if (value.trim()) content.push({ type: "block", value });
       } else {
         inline.push(renderInline(item, baseUrl));
       }
     }
 
     flushInline();
-    if (blocks.length > 0 || nested.length > 0) {
-      if (blocks.length > 0) {
-        const contentLines = blocks.join("\n\n").split("\n");
-        lines.push(`${indent}${marker}${contentLines.shift()}`.trimEnd());
-        const continuationIndent = `${indent}${" ".repeat(marker.length)}`;
-        for (const line of contentLines) {
-          lines.push(line ? `${continuationIndent}${line}` : "");
+    if (content.length > 0) {
+      const continuationIndent = `${indent}${" ".repeat(marker.length)}`;
+      let markerWritten = false;
+      let labelWritten = !negativeOrdered;
+      let previousType = null;
+
+      for (const part of content) {
+        if (part.type === "nested") {
+          if (previousType === "block") lines.push("");
+          if (!markerWritten) {
+            const markerLabel = labelPrefix;
+            lines.push(`${indent}${marker}${markerLabel}`.trimEnd());
+            markerWritten = true;
+            if (markerLabel) labelWritten = true;
+          }
+          lines.push(part.value);
+        } else {
+          if (part.type === "block" || previousType === "block") lines.push("");
+          const contentLines = part.value.split("\n");
+          const firstLine = contentLines.shift();
+          const firstContentLine = labelWritten ? firstLine : `${labelPrefix}${firstLine}`;
+          if (!markerWritten) {
+            lines.push(`${indent}${marker}${firstContentLine}`.trimEnd());
+            markerWritten = true;
+          } else {
+            lines.push(`${continuationIndent}${firstContentLine}`.trimEnd());
+          }
+          labelWritten = true;
+          for (const line of contentLines) {
+            lines.push(line ? `${continuationIndent}${line}` : "");
+          }
         }
-      } else {
-        lines.push(`${indent}${marker}`.trimEnd());
-      }
-      for (const nestedList of nested) {
-        if (nestedList) lines.push(nestedList);
+        previousType = part.type;
       }
     }
     if (ordered) {
