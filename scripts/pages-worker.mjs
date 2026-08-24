@@ -377,6 +377,21 @@ function resolveLink(value, baseUrl) {
   }
 }
 
+function resolveDocumentBase(node, requestUrl) {
+  if (node.type !== "element") return null;
+  if (node.name === "base") {
+    const base = resolveLink(node.attributes.href, requestUrl);
+    if (base) return base;
+  }
+
+  for (const child of node.children) {
+    const base = resolveDocumentBase(child, requestUrl);
+    if (base) return base;
+  }
+
+  return null;
+}
+
 function renderInline(node, baseUrl) {
   if (node.type === "text") {
     return escapeMarkdownText(normalizeInlineText(decodeHtmlEntities(node.value)));
@@ -443,10 +458,62 @@ function parseIntegerAttribute(value) {
   }
 }
 
+function formatAlphabeticLabel(value, uppercase) {
+  if (value < 1n) return null;
+
+  let remaining = value;
+  let label = "";
+  while (remaining > 0n) {
+    remaining -= 1n;
+    label = String.fromCharCode(Number(remaining % 26n) + 65) + label;
+    remaining /= 26n;
+  }
+  return uppercase ? label : label.toLowerCase();
+}
+
+function formatRomanLabel(value, uppercase) {
+  if (value < 1n || value > 3999n) return null;
+
+  const symbols = [
+    [1000n, "M"],
+    [900n, "CM"],
+    [500n, "D"],
+    [400n, "CD"],
+    [100n, "C"],
+    [90n, "XC"],
+    [50n, "L"],
+    [40n, "XL"],
+    [10n, "X"],
+    [9n, "IX"],
+    [5n, "V"],
+    [4n, "IV"],
+    [1n, "I"],
+  ];
+  let remaining = value;
+  let label = "";
+  for (const [number, symbol] of symbols) {
+    const count = Number(remaining / number);
+    label += symbol.repeat(count);
+    remaining %= number;
+  }
+  return uppercase ? label : label.toLowerCase();
+}
+
+function formatOrderedLabel(type, value) {
+  if (type === "A" || type === "a") {
+    return formatAlphabeticLabel(value, type === "A") ?? value.toString();
+  }
+  if (type === "I" || type === "i") {
+    return formatRomanLabel(value, type === "I") ?? value.toString();
+  }
+  return value.toString();
+}
+
 function renderList(node, baseUrl, indent = "") {
   const ordered = node.name === "ol";
   const lines = [];
   const reversed = ordered && Object.hasOwn(node.attributes, "reversed");
+  const type = ordered ? node.attributes.type : null;
   const listItems = node.children.filter(
     (child) => child.type === "element" && child.name === "li",
   ).length;
@@ -465,9 +532,10 @@ function renderList(node, baseUrl, indent = "") {
       if (ordered) number = itemNumber + step;
       continue;
     }
-    const negativeOrdered = ordered && itemNumber < 0n;
-    const marker = negativeOrdered ? "- " : ordered ? `${itemNumber}. ` : "- ";
-    const labelPrefix = negativeOrdered ? `${itemNumber}. ` : "";
+    const itemLabel = ordered ? formatOrderedLabel(type, itemNumber) : null;
+    const nativeOrdered = ordered && itemNumber >= 0n && itemLabel === itemNumber.toString();
+    const marker = nativeOrdered ? `${itemNumber}. ` : "- ";
+    const labelPrefix = ordered && !nativeOrdered ? `${itemLabel}. ` : "";
     const content = [];
     const inline = [];
     const flushInline = () => {
@@ -497,7 +565,7 @@ function renderList(node, baseUrl, indent = "") {
     if (content.length > 0) {
       const continuationIndent = `${indent}${" ".repeat(marker.length)}`;
       let markerWritten = false;
-      let labelWritten = !negativeOrdered;
+      let labelWritten = !labelPrefix;
       let previousType = null;
 
       for (const part of content) {
@@ -573,7 +641,9 @@ function renderChildren(node, baseUrl) {
 }
 
 export function htmlToMarkdown(html, baseUrl = "https://example.invalid/") {
-  const markdown = renderChildren(parseHtml(String(html)), baseUrl)
+  const root = parseHtml(String(html));
+  const documentBaseUrl = resolveDocumentBase(root, baseUrl) ?? baseUrl;
+  const markdown = renderChildren(root, documentBaseUrl)
     .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line) => line.replace(/[ \t]+$/g, ""))

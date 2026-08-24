@@ -53,6 +53,17 @@ test("converts meaningful HTML to Markdown and removes page chrome", () => {
   assert.doesNotMatch(markdown, /(?:Chrome badge|the docs\/docs|Ignore (?:navigation|footer|script))/i);
 });
 
+test("resolves links against the first valid document base", () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<head><base href="javascript:invalid"><base href="/docs/"><base href="/ignored/"></head>'
+        + '<p><a href="guide">Guide</a></p>',
+      "https://example.test/tool/",
+    ),
+    "[Guide](https://example.test/docs/guide)\n",
+  );
+});
+
 test("decodes WHATWG character references in text and attributes", () => {
   const markdown = htmlToMarkdown(
     `<p>Common &copy; and multi-code-point &NotEqualTilde; and text &copy=1.</p>
@@ -150,6 +161,29 @@ test("preserves ordered-list numbering attributes and continuation", () => {
   assert.equal(
     htmlToMarkdown('<ol start="not-an-integer"><li>one<li>two</ol>'),
     "1. one\n2. two\n",
+  );
+});
+
+test("preserves supported ordered-list type labels with valid Markdown markers", () => {
+  assert.equal(
+    htmlToMarkdown('<ol type="1" start="3"><li>three<li>four</ol>'),
+    "3. three\n4. four\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<ol type="A" start="26"><li>zulu<li value="28">ab<li>ac</ol>'),
+    "- Z. zulu\n- AB. ab\n- AC. ac\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<ol type="a"><li>one<li>two</ol>'),
+    "- a. one\n- b. two\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<ol type="I" start="4" reversed><li>four<li>three</ol>'),
+    "- IV. four\n- III. three\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<ol type="i" start="9"><li>nine<li>ten</ol>'),
+    "- ix. nine\n- x. ten\n",
   );
 });
 
