@@ -102,6 +102,8 @@ const DEFINITION_LIST_CONTAINERS = new Set(["dl"]);
 const LIST_ITEM_END_TAGS = new Set(["li"]);
 const DEFINITION_ITEM_END_TAGS = new Set(["dt", "dd"]);
 const NAVIGATION_MARKER = /(?:^|[\s_-])(?:nav|navigation|menu|breadcrumb|breadcrumbs|sidebar|cookie|consent|badge|dot|decorative)(?:$|[\s_-])/i;
+const FENCED_BLOCK_START = "\u0000fenced-block-start\u0000";
+const FENCED_BLOCK_END = "\u0000fenced-block-end\u0000";
 
 function trimHtmlWhitespace(value) {
   return value.replace(/^[ \t\n\f\r]+|[ \t\n\f\r]+$/g, "");
@@ -428,6 +430,7 @@ function resolveLink(value, baseUrl) {
 
 function resolveDocumentBase(node, requestUrl) {
   if (node.type !== "element") return null;
+  if (node.name === "template") return null;
   if (node.name === "base") {
     const base = resolveLink(node.attributes.href, requestUrl);
     if (base) return base;
@@ -495,6 +498,36 @@ function renderCodeBlock(node) {
   const longestRun = Math.max(0, ...[...value.matchAll(/`+/g)].map((match) => match[0].length));
   const fence = "`".repeat(Math.max(3, longestRun + 1));
   return `${fence}${codeLanguage(node)}\n${value}\n${fence}`;
+}
+
+function normalizeStructuralWhitespace(value) {
+  const normalizeOutsideFence = (segment) =>
+    segment.replace(/[ \t]+$/gm, "").replace(/\n{3,}/g, "\n\n");
+  let normalized = "";
+  let cursor = 0;
+
+  while (cursor < value.length) {
+    const start = value.indexOf(FENCED_BLOCK_START, cursor);
+    if (start < 0) {
+      normalized += normalizeOutsideFence(value.slice(cursor));
+      break;
+    }
+
+    const contentStart = start + FENCED_BLOCK_START.length;
+    const end = value.indexOf(FENCED_BLOCK_END, contentStart);
+    if (end < 0) {
+      normalized += normalizeOutsideFence(value.slice(cursor));
+      break;
+    }
+
+    normalized += normalizeOutsideFence(value.slice(cursor, start));
+    normalized += value.slice(start, end + FENCED_BLOCK_END.length);
+    cursor = end + FENCED_BLOCK_END.length;
+  }
+
+  return normalized
+    .replaceAll(FENCED_BLOCK_START, "")
+    .replaceAll(FENCED_BLOCK_END, "");
 }
 
 function parseIntegerAttribute(value) {
@@ -672,7 +705,9 @@ function renderBlock(node, baseUrl) {
     const value = trimHtmlWhitespace(renderInline(node, baseUrl));
     return value ? `\n${value}\n\n` : "";
   }
-  if (node.name === "pre") return `\n${renderCodeBlock(node)}\n\n`;
+  if (node.name === "pre") {
+    return `\n${FENCED_BLOCK_START}${renderCodeBlock(node)}${FENCED_BLOCK_END}\n\n`;
+  }
   if (node.name === "ul" || node.name === "ol" || node.name === "menu") {
     return renderList(node, baseUrl);
   }
@@ -701,12 +736,10 @@ export function htmlToMarkdown(html, baseUrl = "https://example.invalid/") {
   const root = parseHtml(String(html));
   const documentBaseUrl = resolveDocumentBase(root, baseUrl) ?? baseUrl;
   const markdown = trimHtmlWhitespace(
-    renderChildren(root, documentBaseUrl)
-      .replace(/\r\n?/g, "\n")
-      .split("\n")
-      .map((line) => line.replace(/[ \t]+$/g, ""))
-      .join("\n")
-      .replace(/\n{3,}/g, "\n\n"),
+    normalizeStructuralWhitespace(
+      renderChildren(root, documentBaseUrl)
+        .replace(/\r\n?/g, "\n"),
+    ),
   );
 
   return markdown ? `${markdown}\n` : "";

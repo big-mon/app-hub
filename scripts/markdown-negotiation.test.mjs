@@ -81,6 +81,20 @@ test("preserves Unicode spacing while normalizing only HTML ASCII whitespace", (
   );
 });
 
+test("preserves repeated blank lines inside fenced code blocks", () => {
+  assert.equal(
+    htmlToMarkdown("<pre>one\n\n\ntwo</pre>"),
+    "```\none\n\n\ntwo\n```\n",
+  );
+});
+
+test("preserves fenced code line endings while trimming structural line endings", () => {
+  assert.equal(
+    htmlToMarkdown("<p>before   </p><pre>one  \ntwo\t</pre><p>after\t</p>"),
+    "before\n\n```\none  \ntwo\t\n```\n\nafter\n",
+  );
+});
+
 test("preserves meaningful Unicode spacing at rendered block boundaries", () => {
   assert.equal(htmlToMarkdown("<p>&nbsp;lead</p>"), "\u00a0lead\n");
   assert.equal(htmlToMarkdown("<p>trail&nbsp;</p>"), "trail\u00a0\n");
@@ -100,6 +114,16 @@ test("resolves links against the first valid document base", () => {
       "https://example.test/tool/",
     ),
     "[Guide](https://example.test/docs/guide)\n",
+  );
+});
+
+test("ignores base elements inside inert templates", () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<template><base href="https://other.test/"></template><a href="guide">Guide</a>',
+      "https://example.test/request/",
+    ),
+    "[Guide](https://example.test/request/guide)\n",
   );
 });
 
