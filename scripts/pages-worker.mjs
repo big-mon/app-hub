@@ -31,6 +31,7 @@ const DROPPED_ELEMENTS = new Set([
   "link",
   "meta",
   "nav",
+  "noembed",
   "noscript",
   "object",
   "script",
@@ -42,7 +43,15 @@ const DROPPED_ELEMENTS = new Set([
   "textarea",
   "title",
 ]);
-const RAW_TEXT_ELEMENTS = new Set(["script", "style", "textarea", "title", "iframe", "noscript"]);
+const RAW_TEXT_ELEMENTS = new Set([
+  "script",
+  "style",
+  "textarea",
+  "title",
+  "iframe",
+  "noembed",
+  "noscript",
+]);
 const HEAD_METADATA_ELEMENTS = new Set([
   "base",
   "link",
@@ -58,6 +67,7 @@ const BLOCK_ELEMENTS = new Set([
   "article",
   "blockquote",
   "dd",
+  "dialog",
   "details",
   "div",
   "dl",
@@ -219,10 +229,10 @@ function parseAttributes(source) {
 }
 
 function parseTag(source) {
-  const closing = source.match(/^<\s*\/\s*([A-Za-z][\w:-]*)\s*>$/);
+  const closing = source.match(/^<\/([A-Za-z][\w:-]*)\s*>$/);
   if (closing) return { closing: true, name: closing[1].toLowerCase() };
 
-  const opening = source.match(/^<\s*([A-Za-z][\w:-]*)([\s\S]*?)>$/);
+  const opening = source.match(/^<([A-Za-z][\w:-]*)([\s\S]*?)>$/);
   if (!opening) return null;
 
   const rawAttributes = opening[2];
@@ -239,7 +249,7 @@ function parseTag(source) {
 }
 
 function findRawTextEnd(html, start, name) {
-  const closingPattern = new RegExp(`<\\s*/\\s*${name}\\s*>`, "ig");
+  const closingPattern = new RegExp(`</${name}\\s*>`, "ig");
   closingPattern.lastIndex = start;
   const closing = closingPattern.exec(html);
   return closing ? closing.index + closing[0].length : html.length;

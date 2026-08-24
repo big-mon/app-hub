@@ -55,11 +55,32 @@ test("converts meaningful HTML to Markdown and removes page chrome", () => {
 
 test("preserves text after invalid tag candidates while dropping declarations", () => {
   assert.equal(
+    htmlToMarkdown("<p>left < b and right</p><p>Visible</p>"),
+    "left \\< b and right\n\nVisible\n",
+  );
+  assert.equal(
     htmlToMarkdown("<p>1 < 2 and 3 > 1</p>"),
     "1 \\< 2 and 3 \\> 1\n",
   );
   assert.equal(htmlToMarkdown("<!doctype html><p>Visible</p>"), "Visible\n");
   assert.equal(htmlToMarkdown("<p>unterminated < text"), "unterminated \\< text\n");
+});
+
+test("preserves text for invalid end-tag candidates", () => {
+  assert.equal(
+    htmlToMarkdown("<p>left < /p> and right</p><p>Visible</p>"),
+    "left \\< /p\\> and right\n\nVisible\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<p>left </ p> and right</p><p>Visible</p>"),
+    "left \\</ p\\> and right\n\nVisible\n",
+  );
+  assert.equal(
+    htmlToMarkdown(
+      "<noscript>drop </ noscript><p>Leaked</p></noscript><main>Visible</main>",
+    ),
+    "Visible\n",
+  );
 });
 
 test("preserves Unicode spacing while normalizing only HTML ASCII whitespace", () => {
@@ -233,12 +254,26 @@ test("drops raw-text/RCDATA contents without swallowing following HTML", () => {
   }
 });
 
+test("drops noembed fallback as raw text without swallowing following HTML", () => {
+  assert.equal(
+    htmlToMarkdown("<noembed>fallback < 3</noembed><main>Visible</main>"),
+    "Visible\n",
+  );
+});
+
 test("separates adjacent generic block containers", () => {
   const markdown = htmlToMarkdown(
     "<div>First</div><div>Second</div><dl><dt>Term</dt><dd>Meaning</dd></dl>",
   );
 
   assert.equal(markdown, "First\n\nSecond\n\nTerm\n\nMeaning\n");
+});
+
+test("separates adjacent dialog containers", () => {
+  assert.equal(
+    htmlToMarkdown("<dialog open>First</dialog><dialog open>Second</dialog>"),
+    "First\n\nSecond\n",
+  );
 });
 
 test("preserves details and fieldset boundaries", () => {
