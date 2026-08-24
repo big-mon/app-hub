@@ -96,7 +96,7 @@ test("keeps non-control form content while dropping form controls", () => {
 });
 
 test("drops raw-text/RCDATA contents without swallowing following HTML", () => {
-  for (const element of ["script", "style", "textarea", "title"]) {
+  for (const element of ["script", "style", "textarea", "title", "iframe"]) {
     const markdown = htmlToMarkdown(
       `<${element}>for (let i = 0; i < 10; i++) {}</${element}><main><h1>Visible</h1></main>`,
     );
@@ -161,6 +161,13 @@ test("preserves ordered-list numbering attributes and continuation", () => {
   assert.equal(
     htmlToMarkdown('<ol start="not-an-integer"><li>one<li>two</ol>'),
     "1. one\n2. two\n",
+  );
+});
+
+test("uses a visible-label fallback for oversized decimal ordered values", () => {
+  assert.equal(
+    htmlToMarkdown('<ol start="1000000000"><li>large</li></ol>'),
+    "- 1000000000. large\n",
   );
 });
 
@@ -273,6 +280,13 @@ test("escapes Markdown-looking syntax in image alt text", () => {
 
 test("preserves link text when href is missing", () => {
   assert.equal(htmlToMarkdown("<p><a>Coming soon</a></p>"), "Coming soon\n");
+});
+
+test("does not escape brackets inside generated code-span link labels", () => {
+  assert.equal(
+    htmlToMarkdown('<p><a href="/x"><code>[x]</code></a></p>', "https://example.test/"),
+    "[``[x]``](https://example.test/x)\n",
+  );
 });
 
 test("preserves boundaries for invalid and whitespace-only links", () => {

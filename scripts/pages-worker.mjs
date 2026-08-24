@@ -42,7 +42,7 @@ const DROPPED_ELEMENTS = new Set([
   "textarea",
   "title",
 ]);
-const RAW_TEXT_ELEMENTS = new Set(["script", "style", "textarea", "title"]);
+const RAW_TEXT_ELEMENTS = new Set(["script", "style", "textarea", "title", "iframe"]);
 const BLOCK_ELEMENTS = new Set([
   "address",
   "article",
@@ -345,7 +345,10 @@ function escapeMarkdownText(value) {
 }
 
 function escapeLinkLabel(value) {
-  return value.replace(/(?<!\\)([\[\]])/g, "\\$1");
+  return value.replace(
+    /(?<!\\)(`+)[\s\S]*?\1|(?<!\\)([\[\]])/g,
+    (match, _fence, bracket) => (bracket ? `\\${bracket}` : match),
+  );
 }
 
 function escapeLinkDestination(value) {
@@ -533,7 +536,10 @@ function renderList(node, baseUrl, indent = "") {
       continue;
     }
     const itemLabel = ordered ? formatOrderedLabel(type, itemNumber) : null;
-    const nativeOrdered = ordered && itemNumber >= 0n && itemLabel === itemNumber.toString();
+    const nativeOrdered = ordered
+      && itemNumber >= 0n
+      && itemLabel === itemNumber.toString()
+      && itemLabel.length <= 9;
     const marker = nativeOrdered ? `${itemNumber}. ` : "- ";
     const labelPrefix = ordered && !nativeOrdered ? `${itemLabel}. ` : "";
     const content = [];
