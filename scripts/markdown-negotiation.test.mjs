@@ -199,6 +199,14 @@ test("preserves trailing slashes in unquoted URL attributes and separate self-cl
   );
 });
 
+test("ignores non-void HTML self-closing markers but preserves foreign self-closing boundaries", () => {
+  assert.equal(
+    htmlToMarkdown('<p>Before <a href="/x" />Link</p>', "https://example.test/"),
+    "Before [Link](https://example.test/x)\n",
+  );
+  assert.equal(htmlToMarkdown("<svg/><p>Visible</p>"), "Visible\n");
+});
+
 test("closes an unclosed head before attaching an explicit body", () => {
   assert.equal(
     htmlToMarkdown("<html><head><title>x</title><body><h1>Visible</h1>"),
@@ -591,6 +599,75 @@ test("decodes quoted charset labels case-insensitively before Markdown negotiati
 
   assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
   assert.equal(await response.text(), "Café\n");
+});
+
+test("uses an early HTML meta charset when Content-Type omits charset", async () => {
+  const originalBytes = Uint8Array.from([
+    ...new TextEncoder().encode('<meta charset="windows-1252"><main><p>Caf'),
+    0xe9,
+    ...new TextEncoder().encode("</p></main>"),
+  ]);
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("ignores meta charset declarations inside HTML comments", async () => {
+  const originalBytes = new TextEncoder().encode(
+    '<!-- <meta charset="x-unsupported"> --><main><p>Café</p></main>',
+  );
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("uses a BOM before an in-document charset declaration", async () => {
+  const source = '<meta charset="windows-1252"><main><p>Café</p></main>';
+  const originalBytes = new Uint8Array(2 + source.length * 2);
+  originalBytes.set([0xff, 0xfe]);
+  for (let index = 0; index < source.length; index += 1) {
+    const codePoint = source.charCodeAt(index);
+    originalBytes[2 + index * 2] = codePoint & 0xff;
+    originalBytes[3 + index * 2] = codePoint >> 8;
+  }
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("passes through original bytes for an unsupported HTML meta charset", async () => {
+  const originalBytes = new TextEncoder().encode(
+    '<meta charset="x-unsupported"><main><p>Visible</p></main>',
+  );
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/html");
+  assert.equal(response.headers.get("Vary"), "Accept");
+  assert.deepEqual(
+    Array.from(new Uint8Array(await response.arrayBuffer())),
+    Array.from(originalBytes),
+  );
 });
 
 test("passes through original HTML bytes for an unsupported declared charset", async () => {

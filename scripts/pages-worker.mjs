@@ -2,6 +2,7 @@ import { decodeHTML, decodeHTMLAttribute } from "entities/decode";
 
 const MARKDOWN_MEDIA_TYPE = "text/markdown";
 const HTML_MEDIA_TYPE = "text/html";
+const HTML_ENCODING_SNIFF_LIMIT = 1024;
 const QVALUE_PATTERN = /^(?:0(?:\.\d{1,3})?|1(?:\.0{1,3})?)$/;
 const VOID_ELEMENTS = new Set([
   "area",
@@ -351,11 +352,13 @@ function parseHtml(html) {
       children: [],
     };
     stack.at(-1).children.push(node);
-    if (!tag.selfClosing && RAW_TEXT_ELEMENTS.has(tag.name)) {
+    const isForeignContent = tag.name === "svg" || stack.some((element) => element.name === "svg");
+    const honorsSelfClosing = tag.selfClosing && isForeignContent;
+    if (!honorsSelfClosing && RAW_TEXT_ELEMENTS.has(tag.name)) {
       cursor = findRawTextEnd(html, cursor, tag.name);
       continue;
     }
-    if (!tag.selfClosing && !VOID_ELEMENTS.has(tag.name)) stack.push(node);
+    if (!honorsSelfClosing && !VOID_ELEMENTS.has(tag.name)) stack.push(node);
   }
 
   return root;
@@ -782,6 +785,52 @@ function isHtmlResponse(response) {
   return mediaType === HTML_MEDIA_TYPE;
 }
 
+function bytesStartWith(bytes, prefix) {
+  return prefix.every((value, index) => bytes[index] === value);
+}
+
+function asciiPrefix(bytes) {
+  let value = "";
+  for (const byte of bytes.subarray(0, HTML_ENCODING_SNIFF_LIMIT)) {
+    value += String.fromCharCode(byte);
+  }
+  return value;
+}
+
+function attributeValue(source, name) {
+  const match = source.match(
+    new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\\x60]+))`, "i"),
+  );
+  return match?.[1] ?? match?.[2] ?? match?.[3] ?? null;
+}
+
+function sniffMetaCharset(bytes) {
+  const prefix = asciiPrefix(bytes).replace(/<!--[\s\S]*?-->/g, "");
+  for (const match of prefix.matchAll(/<meta\b[^>]*>/gi)) {
+    const tag = match[0];
+    const charset = attributeValue(tag, "charset");
+    if (charset !== null) return charset;
+
+    if (attributeValue(tag, "http-equiv")?.trim().toLowerCase() !== "content-type") continue;
+    const content = attributeValue(tag, "content");
+    const contentCharset = content?.match(
+      /(?:^|;)\s*charset\s*=\s*(?:"([^"]*)"|'([^']*)'|([^;\s]*))/i,
+    );
+    if (contentCharset) {
+      return contentCharset[1] ?? contentCharset[2] ?? contentCharset[3] ?? "";
+    }
+  }
+
+  return null;
+}
+
+function sniffHtmlCharset(bytes) {
+  if (bytesStartWith(bytes, [0xef, 0xbb, 0xbf])) return "utf-8";
+  if (bytesStartWith(bytes, [0xff, 0xfe])) return "utf-16le";
+  if (bytesStartWith(bytes, [0xfe, 0xff])) return "utf-16be";
+  return sniffMetaCharset(bytes) ?? "utf-8";
+}
+
 export async function negotiateMarkdown(request, response) {
   if (
     request.method !== "GET" ||
@@ -805,19 +854,18 @@ export async function negotiateMarkdown(request, response) {
   const contentType = response.headers.get("Content-Type") ?? "";
   const charsetMatch = contentType.match(/;\s*charset\s*=\s*(?:"([^"]*)"|([^;\s]*))/i);
   let html;
-  if (!charsetMatch) {
-    html = await response.text();
-  } else {
-    try {
-      const bytes = await response.clone().arrayBuffer();
-      html = new TextDecoder(charsetMatch[1] ?? charsetMatch[2], { fatal: true }).decode(bytes);
-    } catch {
-      return new Response(response.body, {
-        status: response.status,
-        statusText: response.statusText,
-        headers,
-      });
-    }
+  try {
+    const bytes = await response.clone().arrayBuffer();
+    const charset = charsetMatch
+      ? charsetMatch[1] ?? charsetMatch[2]
+      : sniffHtmlCharset(new Uint8Array(bytes));
+    html = new TextDecoder(charset, { fatal: true }).decode(bytes);
+  } catch {
+    return new Response(response.body, {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
   }
 
   const markdown = htmlToMarkdown(html, request.url);
