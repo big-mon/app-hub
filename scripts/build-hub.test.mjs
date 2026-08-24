@@ -150,7 +150,7 @@ test("the repository owns a pinned Wrangler and gates CI on its availability", a
     testIndex > wranglerIndex;
 
   assert.equal(workspaceSource, "allowBuilds:\n  esbuild: true\n  workerd: true\n");
-  assert.equal(packageJson.devDependencies?.wrangler, "4.124.0");
+  assert.equal(packageJson.devDependencies?.wrangler, "4.125.0");
   assert.equal(hasWranglerAvailabilityGate, true);
 });
 
