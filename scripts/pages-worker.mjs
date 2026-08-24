@@ -437,6 +437,38 @@ function wrapInline(value, opening, closing) {
   return content ? `${leading}${opening}${content}${closing}${trailing}` : value;
 }
 
+function renderInlineCode(value) {
+  const normalizedValue = normalizeInlineText(value);
+  const { content } = splitInlineBoundary(normalizedValue);
+  const run = Math.max(1, ...[...content.matchAll(/`+/g)].map((match) => match[0].length)) + 1;
+  const fence = "`".repeat(run);
+  const padding = content.startsWith("`") || content.endsWith("`") ? " " : "";
+  return wrapInline(normalizedValue, `${fence}${padding}`, `${padding}${fence}`);
+}
+
+function renderInlineSiblings(nodes, baseUrl) {
+  let rendered = "";
+  for (let index = 0; index < nodes.length;) {
+    const child = nodes[index];
+    if (child.type === "element" && child.name === "code") {
+      let value = "";
+      do {
+        value += textContent(nodes[index], true);
+        index += 1;
+      } while (
+        index < nodes.length
+        && nodes[index].type === "element"
+        && nodes[index].name === "code"
+      );
+      rendered += renderInlineCode(value);
+      continue;
+    }
+    rendered += renderInline(child, baseUrl);
+    index += 1;
+  }
+  return rendered;
+}
+
 function resolveLink(value, baseUrl) {
   const href = (value ?? "").trim();
   if (!href) return null;
@@ -471,7 +503,7 @@ function renderInline(node, baseUrl) {
   }
   if (shouldDrop(node)) return "";
 
-  const children = () => node.children.map((child) => renderInline(child, baseUrl)).join("");
+  const children = () => renderInlineSiblings(node.children, baseUrl);
   switch (node.name) {
     case "a": {
       const renderedLabel = children();
@@ -483,12 +515,7 @@ function renderInline(node, baseUrl) {
     case "br":
       return "\\\n";
     case "code": {
-      const value = normalizeInlineText(textContent(node, true));
-      const { content } = splitInlineBoundary(value);
-      const run = Math.max(1, ...[...content.matchAll(/`+/g)].map((match) => match[0].length)) + 1;
-      const fence = "`".repeat(run);
-      const padding = content.startsWith("`") || content.endsWith("`") ? " " : "";
-      return wrapInline(value, `${fence}${padding}`, `${padding}${fence}`);
+      return renderInlineCode(textContent(node, true));
     }
     case "del":
     case "s":
@@ -645,7 +672,9 @@ function renderList(node, baseUrl, indent = "") {
     const content = [];
     const inline = [];
     const flushInline = () => {
-      const label = trimHtmlWhitespace(inline.join("").replace(/[ \t]+/g, " "));
+      const label = trimHtmlWhitespace(
+        renderInlineSiblings(inline, baseUrl).replace(/[ \t]+/g, " "),
+      );
       if (label) content.push({ type: "inline", value: label });
       inline.length = 0;
     };
@@ -666,7 +695,7 @@ function renderList(node, baseUrl, indent = "") {
           .replace(/\n+$/, "");
         if (hasHtmlText(value)) content.push({ type: "block", value });
       } else {
-        inline.push(renderInline(item, baseUrl));
+        inline.push(item);
       }
     }
 
@@ -750,7 +779,23 @@ function renderBlock(node, baseUrl) {
 }
 
 function renderChildren(node, baseUrl) {
-  return node.children.map((child) => renderBlock(child, baseUrl)).join("");
+  let rendered = "";
+  const inline = [];
+  const flushInline = () => {
+    rendered += renderInlineSiblings(inline, baseUrl);
+    inline.length = 0;
+  };
+
+  for (const child of node.children) {
+    if (child.type === "element" && BLOCK_ELEMENTS.has(child.name)) {
+      flushInline();
+      rendered += renderBlock(child, baseUrl);
+    } else {
+      inline.push(child);
+    }
+  }
+  flushInline();
+  return rendered;
 }
 
 export function htmlToMarkdown(html, baseUrl = "https://example.invalid/") {
@@ -805,7 +850,7 @@ function attributeValue(source, name) {
 }
 
 function sniffMetaCharset(bytes) {
-  const prefix = asciiPrefix(bytes).replace(/<!--[\s\S]*?-->/g, "");
+  const prefix = asciiPrefix(bytes).replace(/<!--[\s\S]*?(?:-->|$)/g, "");
   for (const match of prefix.matchAll(/<meta\b[^>]*>/gi)) {
     const tag = match[0];
     const charset = attributeValue(tag, "charset");
@@ -824,11 +869,11 @@ function sniffMetaCharset(bytes) {
   return null;
 }
 
-function sniffHtmlCharset(bytes) {
+function sniffHtmlCharset(bytes, transportCharset = null) {
   if (bytesStartWith(bytes, [0xef, 0xbb, 0xbf])) return "utf-8";
   if (bytesStartWith(bytes, [0xff, 0xfe])) return "utf-16le";
   if (bytesStartWith(bytes, [0xfe, 0xff])) return "utf-16be";
-  return sniffMetaCharset(bytes) ?? "utf-8";
+  return transportCharset ?? sniffMetaCharset(bytes) ?? "utf-8";
 }
 
 export async function negotiateMarkdown(request, response) {
@@ -855,10 +900,11 @@ export async function negotiateMarkdown(request, response) {
   const charsetMatch = contentType.match(/;\s*charset\s*=\s*(?:"([^"]*)"|([^;\s]*))/i);
   let html;
   try {
-    const bytes = await response.clone().arrayBuffer();
-    const charset = charsetMatch
+    const bytes = new Uint8Array(await response.clone().arrayBuffer());
+    const transportCharset = charsetMatch
       ? charsetMatch[1] ?? charsetMatch[2]
-      : sniffHtmlCharset(new Uint8Array(bytes));
+      : null;
+    const charset = sniffHtmlCharset(bytes, transportCharset);
     html = new TextDecoder(charset, { fatal: true }).decode(bytes);
   } catch {
     return new Response(response.body, {

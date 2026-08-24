@@ -546,6 +546,38 @@ test("preserves edge backticks in inline code", () => {
   assert.equal(htmlToMarkdown("<p><code>`foo`</code></p>"), "`` `foo` ``\n");
 });
 
+test("merges adjacent inline code spans without changing visible whitespace", () => {
+  assert.equal(
+    htmlToMarkdown("<p><code>a</code><code>b</code></p>"),
+    "``ab``\n",
+  );
+  assert.equal(
+    htmlToMarkdown(
+      '<p><a href="/x"><code>a</code><code>b</code></a></p>',
+      "https://example.test/",
+    ),
+    "[``ab``](https://example.test/x)\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<p><code>a </code><code> b</code></p>"),
+    "``a b``\n",
+  );
+});
+
+test("merges adjacent inline code spans in list items", () => {
+  assert.equal(
+    htmlToMarkdown("<ul><li><code>a</code><code>b</code></li></ul>"),
+    "- ``ab``\n",
+  );
+});
+
+test("merges adjacent inline code spans in root runs", () => {
+  assert.equal(
+    htmlToMarkdown("<code>a</code><code>b</code>"),
+    "``ab``\n",
+  );
+});
+
 test("preserves explicit HTML line breaks in paragraphs", () => {
   assert.equal(htmlToMarkdown("<p>First<br>Second</p>"), "First\\\nSecond\n");
 });
@@ -577,6 +609,23 @@ test("decodes raw windows-1252 HTML bytes before Markdown negotiation", async ()
       ]),
       { headers: { "Content-Type": "text/html; charset=windows-1252" } },
     ),
+  );
+
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("gives a leading UTF-8 BOM precedence over a conflicting transport charset", async () => {
+  const originalBytes = Uint8Array.from([
+    0xef, 0xbb, 0xbf,
+    ...new TextEncoder().encode("<main><p>Café</p></main>"),
+  ]);
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, {
+      headers: { "Content-Type": "text/html; charset=windows-1252" },
+    }),
   );
 
   assert.equal(await response.text(), "Café\n");
@@ -629,6 +678,23 @@ test("ignores meta charset declarations inside HTML comments", async () => {
   );
 
   assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("keeps an open HTML comment inert through the encoding sniff window", async () => {
+  const comment = '<!-- <meta charset="windows-1252">';
+  const prefix = `${comment}${"x".repeat(1024 - comment.length)}`;
+  const originalBytes = Uint8Array.from([
+    ...new TextEncoder().encode(prefix),
+    ...new TextEncoder().encode("--><main><p>Café</p></main>"),
+  ]);
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
   assert.equal(await response.text(), "Café\n");
 });
 
