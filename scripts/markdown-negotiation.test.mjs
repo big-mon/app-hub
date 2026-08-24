@@ -110,7 +110,7 @@ test("keeps non-control form content while dropping form controls", () => {
 });
 
 test("drops raw-text/RCDATA contents without swallowing following HTML", () => {
-  for (const element of ["script", "style", "textarea", "title", "iframe"]) {
+  for (const element of ["script", "style", "textarea", "title", "iframe", "noscript"]) {
     const markdown = htmlToMarkdown(
       `<${element}>for (let i = 0; i < 10; i++) {}</${element}><main><h1>Visible</h1></main>`,
     );
@@ -376,6 +376,17 @@ test("preserves boundary whitespace around inline Markdown wrappers", () => {
 
 test("preserves edge backticks in inline code", () => {
   assert.equal(htmlToMarkdown("<p><code>`foo`</code></p>"), "`` `foo` ``\n");
+});
+
+test("preserves explicit HTML line breaks in paragraphs", () => {
+  assert.equal(htmlToMarkdown("<p>First<br>Second</p>"), "First\\\nSecond\n");
+});
+
+test("preserves explicit HTML line breaks in list items", () => {
+  assert.equal(
+    htmlToMarkdown("<ul><li>First<br>Second</li></ul>"),
+    "- First\\\n  Second\n",
+  );
 });
 
 test("preserves boundary whitespace around inline code", () => {

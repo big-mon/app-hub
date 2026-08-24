@@ -42,7 +42,7 @@ const DROPPED_ELEMENTS = new Set([
   "textarea",
   "title",
 ]);
-const RAW_TEXT_ELEMENTS = new Set(["script", "style", "textarea", "title", "iframe"]);
+const RAW_TEXT_ELEMENTS = new Set(["script", "style", "textarea", "title", "iframe", "noscript"]);
 const HEAD_METADATA_ELEMENTS = new Set([
   "base",
   "link",
@@ -430,7 +430,7 @@ function renderInline(node, baseUrl) {
       return `${leading}[${escapeLinkLabel(content || href)}](${escapeLinkDestination(href)})${trailing}`;
     }
     case "br":
-      return "\n";
+      return "\\\n";
     case "code": {
       const value = textContent(node, true).replace(/\s+/g, " ");
       const { content } = splitInlineBoundary(value);
@@ -564,7 +564,7 @@ function renderList(node, baseUrl, indent = "") {
     const content = [];
     const inline = [];
     const flushInline = () => {
-      const label = inline.join("").replace(/\s+/g, " ").trim();
+      const label = inline.join("").replace(/[ \t]+/g, " ").trim();
       if (label) content.push({ type: "inline", value: label });
       inline.length = 0;
     };
