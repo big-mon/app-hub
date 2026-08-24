@@ -102,6 +102,63 @@ test("separates adjacent generic block containers", () => {
   assert.equal(markdown, "First\n\nSecond\n\nTerm\n\nMeaning\n");
 });
 
+test("applies supported HTML implied end tags before nesting", () => {
+  assert.equal(htmlToMarkdown("<ul><li>one<li>two</ul>"), "- one\n- two\n");
+  assert.equal(htmlToMarkdown("<p>one<p>two"), "one\n\ntwo\n");
+  assert.equal(htmlToMarkdown("<p>one<div>two</div>"), "one\n\ntwo\n");
+  assert.equal(
+    htmlToMarkdown("<dl><dt>term one<dd>meaning one<dt>term two<dd>meaning two</dl>"),
+    "term one\n\nmeaning one\n\nterm two\n\nmeaning two\n",
+  );
+});
+
+test("preserves ordered-list numbering attributes and continuation", () => {
+  assert.equal(
+    htmlToMarkdown('<ol start="3"><li>three<li>four</ol>'),
+    "3. three\n4. four\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<ol reversed><li>two<li>one</ol>"),
+    "2. two\n1. one\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<ol start="8" reversed><li>eight<li>seven</ol>'),
+    "8. eight\n7. seven\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<ol><li value="4">four<li>five</ol>'),
+    "4. four\n5. five\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<ol start="not-an-integer"><li>one<li>two</ol>'),
+    "1. one\n2. two\n",
+  );
+});
+
+test("preserves reversed numbering across dropped list items", () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<ol reversed><li>three</li><li class="navigation-marker">drop</li><li>one</li></ol>',
+    ),
+    "3. three\n1. one\n",
+  );
+});
+
+test("indents nested lists by the containing marker width", () => {
+  assert.equal(
+    htmlToMarkdown("<ul><li>parent<ul><li>child</li></ul></li></ul>"),
+    "- parent\n  - child\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<ol><li>parent<ul><li>child</li></ul></li></ol>"),
+    "1. parent\n   - child\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<ol start="10"><li>parent<ul><li>child</li></ul></li></ol>'),
+    "10. parent\n    - child\n",
+  );
+});
+
 test("escapes Markdown-looking syntax from ordinary text nodes", () => {
   const markdown = htmlToMarkdown("<p># literal [label](target) ~~literal~~</p>");
 
@@ -116,6 +173,55 @@ test("escapes Markdown-looking syntax in image alt text", () => {
 
 test("preserves link text when href is missing", () => {
   assert.equal(htmlToMarkdown("<p><a>Coming soon</a></p>"), "Coming soon\n");
+});
+
+test("preserves boundaries for invalid and whitespace-only links", () => {
+  assert.equal(
+    htmlToMarkdown("<p>Hello<a> world</a>today</p>"),
+    "Hello worldtoday\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<p>Hello<a href="javascript:void(0)"> world</a>today</p>'),
+    "Hello worldtoday\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<p>Before<a href="/x"> </a>after</p>'),
+    "Before [https://example.invalid/x](https://example.invalid/x)after\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<p>Before<a href="/x"></a>after</p>'),
+    "Before[https://example.invalid/x](https://example.invalid/x)after\n",
+  );
+});
+
+test("escapes parentheses in Markdown link destinations", () => {
+  assert.equal(
+    htmlToMarkdown('<p><a href="https://example.test/report)">Report</a></p>'),
+    "[Report](https://example.test/report\\))\n",
+  );
+});
+
+test("preserves boundary whitespace around inline Markdown wrappers", () => {
+  assert.equal(
+    htmlToMarkdown('<p>Visit <a href="/x">this page </a>today</p>'),
+    "Visit [this page](https://example.invalid/x) today\n",
+  );
+
+  for (const [tag, marker] of [
+    ["strong", "**"],
+    ["b", "**"],
+    ["em", "*"],
+    ["i", "*"],
+    ["del", "~~"],
+    ["s", "~~"],
+    ["strike", "~~"],
+  ]) {
+    assert.equal(
+      htmlToMarkdown(`<p>Hello<${tag}> world</${tag}></p>`),
+      `Hello ${marker}world${marker}\n`,
+      tag,
+    );
+  }
 });
 
 test("preserves edge backticks in inline code", () => {

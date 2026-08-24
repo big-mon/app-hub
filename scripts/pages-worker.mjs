@@ -74,6 +74,11 @@ const BLOCK_ELEMENTS = new Set([
   "body",
   "ul",
 ]);
+const P_IMPLIED_END_TAG_STARTS = BLOCK_ELEMENTS;
+const LIST_CONTAINERS = new Set(["ol", "ul"]);
+const DEFINITION_LIST_CONTAINERS = new Set(["dl"]);
+const LIST_ITEM_END_TAGS = new Set(["li"]);
+const DEFINITION_ITEM_END_TAGS = new Set(["dt", "dd"]);
 const NAVIGATION_MARKER = /(?:^|[\s_-])(?:nav|navigation|menu|breadcrumb|breadcrumbs|sidebar|cookie|consent|badge|dot|decorative)(?:$|[\s_-])/i;
 
 function splitHeaderValue(value, separator) {
@@ -199,6 +204,38 @@ function findRawTextEnd(html, start, name) {
   return closing ? closing.index + closing[0].length : html.length;
 }
 
+function closeImpliedElements(stack, name) {
+  const impliedGroup = name === "li"
+    ? LIST_ITEM_END_TAGS
+    : name === "dt" || name === "dd"
+      ? DEFINITION_ITEM_END_TAGS
+      : null;
+  const scopeBoundary = name === "li"
+    ? LIST_CONTAINERS
+    : name === "dt" || name === "dd"
+      ? DEFINITION_LIST_CONTAINERS
+      : null;
+
+  if (impliedGroup) {
+    for (let index = stack.length - 1; index > 0; index -= 1) {
+      if (scopeBoundary.has(stack[index].name)) break;
+      if (impliedGroup.has(stack[index].name)) {
+        stack.length = index;
+        return;
+      }
+    }
+  }
+
+  if (P_IMPLIED_END_TAG_STARTS.has(name)) {
+    for (let index = stack.length - 1; index > 0; index -= 1) {
+      if (stack[index].name === "p") {
+        stack.length = index;
+        return;
+      }
+    }
+  }
+}
+
 function parseHtml(html) {
   const root = { type: "element", name: "root", attributes: {}, children: [] };
   const stack = [root];
@@ -241,6 +278,7 @@ function parseHtml(html) {
       continue;
     }
 
+    closeImpliedElements(stack, tag.name);
     const node = {
       type: "element",
       name: tag.name,
@@ -303,6 +341,23 @@ function escapeLinkLabel(value) {
   return value.replace(/(?<!\\)([\[\]])/g, "\\$1");
 }
 
+function escapeLinkDestination(value) {
+  return value.replace(/([()])/g, "\\$1");
+}
+
+function splitInlineBoundary(value) {
+  const leading = value.match(/^\s*/)[0];
+  const remaining = value.slice(leading.length);
+  const trailing = remaining.match(/\s*$/)[0];
+  const content = remaining.slice(0, remaining.length - trailing.length);
+  return { leading, content, trailing };
+}
+
+function wrapInline(value, opening, closing) {
+  const { leading, content, trailing } = splitInlineBoundary(value);
+  return content ? `${leading}${opening}${content}${closing}${trailing}` : value;
+}
+
 function resolveLink(value, baseUrl) {
   const href = (value ?? "").trim();
   if (!href) return null;
@@ -324,10 +379,11 @@ function renderInline(node, baseUrl) {
   const children = () => node.children.map((child) => renderInline(child, baseUrl)).join("");
   switch (node.name) {
     case "a": {
-      const label = children().trim();
+      const renderedLabel = children();
+      const { leading, content, trailing } = splitInlineBoundary(renderedLabel);
       const href = resolveLink(node.attributes.href, baseUrl);
-      if (!href) return label;
-      return `[${escapeLinkLabel(label || href)}](${href})`;
+      if (!href) return renderedLabel;
+      return `${leading}[${escapeLinkLabel(content || href)}](${escapeLinkDestination(href)})${trailing}`;
     }
     case "br":
       return "\n";
@@ -341,13 +397,13 @@ function renderInline(node, baseUrl) {
     case "del":
     case "s":
     case "strike":
-      return `~~${children().trim()}~~`;
+      return wrapInline(children(), "~~", "~~");
     case "b":
     case "strong":
-      return `**${children().trim()}**`;
+      return wrapInline(children(), "**", "**");
     case "em":
     case "i":
-      return `*${children().trim()}*`;
+      return wrapInline(children(), "*", "*");
     case "img":
       return escapeMarkdownText(normalizeInlineText(node.attributes.alt ?? ""));
     default:
@@ -369,21 +425,45 @@ function renderCodeBlock(node) {
   return `${fence}${codeLanguage(node)}\n${value}\n${fence}`;
 }
 
-function renderList(node, baseUrl, depth = 0) {
+function parseIntegerAttribute(value) {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  if (!/^[+-]?\d+$/.test(normalized)) return null;
+  try {
+    return BigInt(normalized);
+  } catch {
+    return null;
+  }
+}
+
+function renderList(node, baseUrl, indent = "") {
   const ordered = node.name === "ol";
-  const indent = "  ".repeat(depth);
   const lines = [];
-  let number = 1;
+  const reversed = ordered && Object.hasOwn(node.attributes, "reversed");
+  const listItems = node.children.filter(
+    (child) => child.type === "element" && child.name === "li",
+  ).length;
+  let number = ordered
+    ? parseIntegerAttribute(node.attributes.start) ?? (reversed ? BigInt(listItems) : 1n)
+    : 1n;
+  const step = reversed ? -1n : 1n;
 
   for (const child of node.children) {
-    if (child.type !== "element" || child.name !== "li" || shouldDrop(child)) continue;
+    if (child.type !== "element" || child.name !== "li") continue;
 
+    const itemNumber = ordered
+      ? parseIntegerAttribute(child.attributes.value) ?? number
+      : null;
+    if (shouldDrop(child)) {
+      if (ordered) number = itemNumber + step;
+      continue;
+    }
+    const marker = ordered ? `${itemNumber}. ` : "- ";
     const content = [];
     const nested = [];
     for (const item of child.children) {
       if (item.type === "element" && (item.name === "ul" || item.name === "ol")) {
         nested.push(
-          renderList(item, baseUrl, depth + 1)
+          renderList(item, baseUrl, `${indent}${" ".repeat(marker.length)}`)
             .replace(/^\n+/, "")
             .replace(/\n+$/, ""),
         );
@@ -394,13 +474,14 @@ function renderList(node, baseUrl, depth = 0) {
 
     const label = content.join("").replace(/\s+/g, " ").trim();
     if (label || nested.length > 0) {
-      const marker = ordered ? `${number}. ` : "- ";
       lines.push(`${indent}${marker}${label}`.trimEnd());
       for (const nestedList of nested) {
         if (nestedList) lines.push(nestedList);
       }
     }
-    number += 1;
+    if (ordered) {
+      number = itemNumber + step;
+    }
   }
 
   return lines.length > 0 ? `\n${lines.join("\n")}\n\n` : "";
