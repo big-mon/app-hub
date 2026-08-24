@@ -53,6 +53,45 @@ test("converts meaningful HTML to Markdown and removes page chrome", () => {
   assert.doesNotMatch(markdown, /(?:Chrome badge|the docs\/docs|Ignore (?:navigation|footer|script))/i);
 });
 
+test("preserves text after invalid tag candidates while dropping declarations", () => {
+  assert.equal(
+    htmlToMarkdown("<p>1 < 2 and 3 > 1</p>"),
+    "1 \\< 2 and 3 \\> 1\n",
+  );
+  assert.equal(htmlToMarkdown("<!doctype html><p>Visible</p>"), "Visible\n");
+  assert.equal(htmlToMarkdown("<p>unterminated < text"), "unterminated \\< text\n");
+});
+
+test("preserves Unicode spacing while normalizing only HTML ASCII whitespace", () => {
+  assert.equal(
+    htmlToMarkdown("<p>10&nbsp;&nbsp;kg and  a&#9;b&#10;c&#12;d&#13;e</p>"),
+    "10\u00a0\u00a0kg and a b c d e\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<p>wide&emsp;space&#8239;here <strong>bold&nbsp;&nbsp;text</strong></p>"),
+    "wide\u2003space\u202fhere **bold\u00a0\u00a0text**\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<p>Hello<strong>&nbsp;world&nbsp;</strong>today</p>"),
+    "Hello**\u00a0world\u00a0**today\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<p><code>a&nbsp;&nbsp;b&#9; c</code></p><pre>a&nbsp;&nbsp;b\nc</pre>"),
+    "``a b c``\n\n```\na\u00a0\u00a0b\nc\n```\n",
+  );
+});
+
+test("preserves meaningful Unicode spacing at rendered block boundaries", () => {
+  assert.equal(htmlToMarkdown("<p>&nbsp;lead</p>"), "\u00a0lead\n");
+  assert.equal(htmlToMarkdown("<p>trail&nbsp;</p>"), "trail\u00a0\n");
+  assert.equal(htmlToMarkdown("<h1>&nbsp;title&nbsp;</h1>"), "# \u00a0title\u00a0\n");
+  assert.equal(htmlToMarkdown("<ul><li>&nbsp;item&nbsp;</li></ul>"), "- \u00a0item\u00a0\n");
+  assert.equal(
+    htmlToMarkdown("<blockquote>&nbsp;quote&nbsp;</blockquote>"),
+    "> \u00a0quote\u00a0\n",
+  );
+});
+
 test("resolves links against the first valid document base", () => {
   assert.equal(
     htmlToMarkdown(
@@ -61,6 +100,17 @@ test("resolves links against the first valid document base", () => {
       "https://example.test/tool/",
     ),
     "[Guide](https://example.test/docs/guide)\n",
+  );
+});
+
+test("keeps the first case-insensitive occurrence of duplicate attributes", () => {
+  assert.equal(
+    htmlToMarkdown('<p><a HREF="/safe" href="/other">Link</a></p>', "https://example.test/"),
+    "[Link](https://example.test/safe)\n",
+  );
+  assert.equal(
+    htmlToMarkdown('<p><img ALT="first" alt="second"></p>'),
+    "first\n",
   );
 });
 
@@ -182,6 +232,17 @@ test("applies supported HTML implied end tags before nesting", () => {
   assert.equal(
     htmlToMarkdown("<dl><dt>term one<dd>meaning one<dt>term two<dd>meaning two</dl>"),
     "term one\n\nmeaning one\n\nterm two\n\nmeaning two\n",
+  );
+});
+
+test("renders menu as an unordered list with omitted and nested list items", () => {
+  assert.equal(
+    htmlToMarkdown("<menu><li>Cut</li><li>Copy</li></menu>"),
+    "- Cut\n- Copy\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<menu><li>File<menu><li>New<li>Open</menu><li>Edit</menu>"),
+    "- File\n  - New\n  - Open\n- Edit\n",
   );
 });
 

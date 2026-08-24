@@ -79,6 +79,7 @@ const BLOCK_ELEMENTS = new Set([
   "li",
   "legend",
   "main",
+  "menu",
   "ol",
   "p",
   "pre",
@@ -96,11 +97,23 @@ const BLOCK_ELEMENTS = new Set([
   "ul",
 ]);
 const P_IMPLIED_END_TAG_STARTS = BLOCK_ELEMENTS;
-const LIST_CONTAINERS = new Set(["ol", "ul"]);
+const LIST_CONTAINERS = new Set(["menu", "ol", "ul"]);
 const DEFINITION_LIST_CONTAINERS = new Set(["dl"]);
 const LIST_ITEM_END_TAGS = new Set(["li"]);
 const DEFINITION_ITEM_END_TAGS = new Set(["dt", "dd"]);
 const NAVIGATION_MARKER = /(?:^|[\s_-])(?:nav|navigation|menu|breadcrumb|breadcrumbs|sidebar|cookie|consent|badge|dot|decorative)(?:$|[\s_-])/i;
+
+function trimHtmlWhitespace(value) {
+  return value.replace(/^[ \t\n\f\r]+|[ \t\n\f\r]+$/g, "");
+}
+
+function hasHtmlText(value) {
+  return /[^ \t\n\f\r]/.test(value);
+}
+
+function trimHtmlWhitespaceEnd(value) {
+  return value.replace(/[ \t\n\f\r]+$/g, "");
+}
 
 function splitHeaderValue(value, separator) {
   const parts = [];
@@ -193,7 +206,9 @@ function parseAttributes(source) {
   const attributes = Object.create(null);
   const attributePattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
   for (const match of source.matchAll(attributePattern)) {
-    attributes[match[1].toLowerCase()] = decodeHtmlEntities(
+    const name = match[1].toLowerCase();
+    if (Object.hasOwn(attributes, name)) continue;
+    attributes[name] = decodeHtmlEntities(
       match[2] ?? match[3] ?? match[4] ?? "",
       "attribute",
     );
@@ -270,7 +285,7 @@ function parseHtml(html) {
   let cursor = 0;
 
   const appendText = (value) => {
-    if (value.trim() && stack.at(-1)?.name === "head") stack.pop();
+    if (hasHtmlText(value) && stack.at(-1)?.name === "head") stack.pop();
     if (value) stack.at(-1).children.push({ type: "text", value });
   };
 
@@ -294,9 +309,18 @@ function parseHtml(html) {
       break;
     }
 
-    const tag = parseTag(html.slice(opening, tagEnd + 1));
+    const candidate = html.slice(opening, tagEnd + 1);
+    const tag = parseTag(candidate);
+    if (!tag) {
+      if (candidate.startsWith("<!")) {
+        cursor = tagEnd + 1;
+      } else {
+        appendText("<");
+        cursor = opening + 1;
+      }
+      continue;
+    }
     cursor = tagEnd + 1;
-    if (!tag) continue;
     if (tag.closing) {
       for (let index = stack.length - 1; index > 0; index -= 1) {
         if (stack[index].name === tag.name) {
@@ -343,7 +367,7 @@ function textContent(node, preserveWhitespace = false) {
 }
 
 function normalizeInlineText(value) {
-  return value.replace(/\s+/g, " ");
+  return value.replace(/[ \t\n\f\r]+/g, " ");
 }
 
 function escapeMarkdownText(value) {
@@ -378,9 +402,9 @@ function escapeLinkDestination(value) {
 }
 
 function splitInlineBoundary(value) {
-  const leading = value.match(/^\s*/)[0];
+  const leading = value.match(/^[ \t\n\f\r]*/)[0];
   const remaining = value.slice(leading.length);
-  const trailing = remaining.match(/\s*$/)[0];
+  const trailing = remaining.match(/[ \t\n\f\r]*$/)[0];
   const content = remaining.slice(0, remaining.length - trailing.length);
   return { leading, content, trailing };
 }
@@ -567,12 +591,15 @@ function renderList(node, baseUrl, indent = "") {
     const content = [];
     const inline = [];
     const flushInline = () => {
-      const label = inline.join("").replace(/[ \t]+/g, " ").trim();
+      const label = trimHtmlWhitespace(inline.join("").replace(/[ \t]+/g, " "));
       if (label) content.push({ type: "inline", value: label });
       inline.length = 0;
     };
     for (const item of child.children) {
-      if (item.type === "element" && (item.name === "ul" || item.name === "ol")) {
+      if (
+        item.type === "element"
+        && (item.name === "ul" || item.name === "ol" || item.name === "menu")
+      ) {
         flushInline();
         const value = renderList(item, baseUrl, `${indent}${" ".repeat(marker.length)}`)
           .replace(/^\n+/, "")
@@ -583,7 +610,7 @@ function renderList(node, baseUrl, indent = "") {
         const value = renderBlock(item, baseUrl)
           .replace(/^\n+/, "")
           .replace(/\n+$/, "");
-        if (value.trim()) content.push({ type: "block", value });
+        if (hasHtmlText(value)) content.push({ type: "block", value });
       } else {
         inline.push(renderInline(item, baseUrl));
       }
@@ -601,7 +628,7 @@ function renderList(node, baseUrl, indent = "") {
           if (previousType === "block") lines.push("");
           if (!markerWritten) {
             const markerLabel = labelPrefix;
-            lines.push(`${indent}${marker}${markerLabel}`.trimEnd());
+            lines.push(trimHtmlWhitespaceEnd(`${indent}${marker}${markerLabel}`));
             markerWritten = true;
             if (markerLabel) labelWritten = true;
           }
@@ -612,10 +639,10 @@ function renderList(node, baseUrl, indent = "") {
           const firstLine = contentLines.shift();
           const firstContentLine = labelWritten ? firstLine : `${labelPrefix}${firstLine}`;
           if (!markerWritten) {
-            lines.push(`${indent}${marker}${firstContentLine}`.trimEnd());
+            lines.push(trimHtmlWhitespaceEnd(`${indent}${marker}${firstContentLine}`));
             markerWritten = true;
           } else {
-            lines.push(`${continuationIndent}${firstContentLine}`.trimEnd());
+            lines.push(trimHtmlWhitespaceEnd(`${continuationIndent}${firstContentLine}`));
           }
           labelWritten = true;
           for (const line of contentLines) {
@@ -639,16 +666,18 @@ function renderBlock(node, baseUrl) {
 
   if (/^h[1-6]$/.test(node.name)) {
     const level = Number(node.name.slice(1));
-    return `\n${"#".repeat(level)} ${renderInline(node, baseUrl).trim()}\n\n`;
+    return `\n${"#".repeat(level)} ${trimHtmlWhitespace(renderInline(node, baseUrl))}\n\n`;
   }
   if (node.name === "p") {
-    const value = renderInline(node, baseUrl).trim();
+    const value = trimHtmlWhitespace(renderInline(node, baseUrl));
     return value ? `\n${value}\n\n` : "";
   }
   if (node.name === "pre") return `\n${renderCodeBlock(node)}\n\n`;
-  if (node.name === "ul" || node.name === "ol") return renderList(node, baseUrl);
+  if (node.name === "ul" || node.name === "ol" || node.name === "menu") {
+    return renderList(node, baseUrl);
+  }
   if (node.name === "blockquote") {
-    const value = renderChildren(node, baseUrl).trim();
+    const value = trimHtmlWhitespace(renderChildren(node, baseUrl));
     return value
       ? `\n${value
           .split("\n")
@@ -658,7 +687,7 @@ function renderBlock(node, baseUrl) {
   }
   if (node.name === "hr") return "\n---\n\n";
   if (BLOCK_ELEMENTS.has(node.name)) {
-    const value = renderChildren(node, baseUrl).trim();
+    const value = trimHtmlWhitespace(renderChildren(node, baseUrl));
     return value ? `\n${value}\n\n` : "";
   }
   return renderInline(node, baseUrl);
@@ -671,13 +700,14 @@ function renderChildren(node, baseUrl) {
 export function htmlToMarkdown(html, baseUrl = "https://example.invalid/") {
   const root = parseHtml(String(html));
   const documentBaseUrl = resolveDocumentBase(root, baseUrl) ?? baseUrl;
-  const markdown = renderChildren(root, documentBaseUrl)
-    .replace(/\r\n?/g, "\n")
-    .split("\n")
-    .map((line) => line.replace(/[ \t]+$/g, ""))
-    .join("\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  const markdown = trimHtmlWhitespace(
+    renderChildren(root, documentBaseUrl)
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map((line) => line.replace(/[ \t]+$/g, ""))
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n"),
+  );
 
   return markdown ? `${markdown}\n` : "";
 }
