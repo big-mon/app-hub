@@ -354,6 +354,7 @@ function parseHtml(html) {
 function shouldDrop(node) {
   if (DROPPED_ELEMENTS.has(node.name)) return true;
   const attributes = node.attributes;
+  if (Object.hasOwn(attributes, "hidden")) return true;
   const marker = [attributes.id, attributes.class, attributes.role]
     .filter(Boolean)
     .join(" ");
@@ -366,6 +367,13 @@ function textContent(node, preserveWhitespace = false) {
   return node.children
     .map((child) => textContent(child, preserveWhitespace))
     .join(preserveWhitespace ? "" : " ");
+}
+
+function preformattedTextContent(node) {
+  if (node.type === "text") return decodeHtmlEntities(node.value);
+  if (shouldDrop(node)) return "";
+  if (node.name === "br") return "\n";
+  return node.children.map((child) => preformattedTextContent(child)).join("");
 }
 
 function normalizeInlineText(value) {
@@ -462,7 +470,7 @@ function renderInline(node, baseUrl) {
     case "br":
       return "\\\n";
     case "code": {
-      const value = textContent(node, true).replace(/\s+/g, " ");
+      const value = normalizeInlineText(textContent(node, true));
       const { content } = splitInlineBoundary(value);
       const run = Math.max(1, ...[...content.matchAll(/`+/g)].map((match) => match[0].length)) + 1;
       const fence = "`".repeat(run);
@@ -494,7 +502,7 @@ function codeLanguage(node) {
 }
 
 function renderCodeBlock(node) {
-  const value = textContent(node, true).replace(/\r\n?/g, "\n").replace(/^\n|\n$/g, "");
+  const value = preformattedTextContent(node).replace(/\r\n?/g, "\n").replace(/^\n|\n$/g, "");
   const longestRun = Math.max(0, ...[...value.matchAll(/`+/g)].map((match) => match[0].length));
   const fence = "`".repeat(Math.max(3, longestRun + 1));
   return `${fence}${codeLanguage(node)}\n${value}\n${fence}`;

@@ -77,7 +77,32 @@ test("preserves Unicode spacing while normalizing only HTML ASCII whitespace", (
   );
   assert.equal(
     htmlToMarkdown("<p><code>a&nbsp;&nbsp;b&#9; c</code></p><pre>a&nbsp;&nbsp;b\nc</pre>"),
-    "``a b c``\n\n```\na\u00a0\u00a0b\nc\n```\n",
+    "``a\u00a0\u00a0b c``\n\n```\na\u00a0\u00a0b\nc\n```\n",
+  );
+});
+
+test("drops subtrees when the native hidden attribute is present", () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<main><p>Visible</p><div hidden>Secret panel</div>'
+        + '<div hidden="false"><strong>Also hidden</strong></div><p>After</p></main>',
+    ),
+    "Visible\n\nAfter\n",
+  );
+});
+
+test("preserves Unicode spaces in inline code and keeps dynamic fences", () => {
+  assert.equal(
+    htmlToMarkdown("<p><code>a&nbsp;&nbsp;`b`</code></p>"),
+    "`` a\u00a0\u00a0`b` ``\n",
+  );
+});
+
+test("renders preformatted br elements as newlines without exposing dropped content", () => {
+  assert.equal(htmlToMarkdown("<pre>one<br>two</pre>"), "```\none\ntwo\n```\n");
+  assert.equal(
+    htmlToMarkdown("<pre>one<br><aside>secret<br>still secret</aside>two</pre>"),
+    "```\none\ntwo\n```\n",
   );
 });
 
