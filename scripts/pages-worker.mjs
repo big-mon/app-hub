@@ -1,3 +1,5 @@
+import { decodeHTML, decodeHTMLAttribute } from "entities/decode";
+
 const MARKDOWN_MEDIA_TYPE = "text/markdown";
 const HTML_MEDIA_TYPE = "text/html";
 const QVALUE_PATTERN = /^(?:0(?:\.\d{1,3})?|1(?:\.0{1,3})?)$/;
@@ -142,26 +144,8 @@ export function acceptsMarkdown(acceptHeader) {
   return parseMarkdownAccept(acceptHeader).some((quality) => quality > 0);
 }
 
-function decodeHtmlEntities(value) {
-  return value.replace(
-    /&(?:amp|lt|gt|quot|apos|nbsp|#(?:\d+|x[\da-f]+));/gi,
-    (entity) => {
-      const lower = entity.toLowerCase();
-      if (lower === "&amp;") return "&";
-      if (lower === "&lt;") return "<";
-      if (lower === "&gt;") return ">";
-      if (lower === "&quot;") return '"';
-      if (lower === "&apos;") return "'";
-      if (lower === "&nbsp;") return " ";
-
-      const numeric = lower.startsWith("&#x")
-        ? Number.parseInt(lower.slice(3, -1), 16)
-        : Number.parseInt(lower.slice(2, -1), 10);
-      return Number.isInteger(numeric) && numeric >= 0 && numeric <= 0x10ffff
-        ? String.fromCodePoint(numeric)
-        : entity;
-    },
-  );
+function decodeHtmlEntities(value, mode = "text") {
+  return mode === "attribute" ? decodeHTMLAttribute(value) : decodeHTML(value);
 }
 
 function findTagEnd(html, start) {
@@ -185,6 +169,7 @@ function parseAttributes(source) {
   for (const match of source.matchAll(attributePattern)) {
     attributes[match[1].toLowerCase()] = decodeHtmlEntities(
       match[2] ?? match[3] ?? match[4] ?? "",
+      "attribute",
     );
   }
   return attributes;
@@ -319,7 +304,7 @@ function escapeLinkLabel(value) {
 }
 
 function resolveLink(value, baseUrl) {
-  const href = decodeHtmlEntities(value ?? "").trim();
+  const href = (value ?? "").trim();
   if (!href) return null;
   try {
     const url = new URL(href, baseUrl);

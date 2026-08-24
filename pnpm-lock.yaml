@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      entities:
+        specifier: 8.0.0
+        version: 8.0.0
     devDependencies:
       wrangler:
         specifier: 4.124.0
@@ -419,6 +423,10 @@ packages:
     resolution: {integrity: sha512-Btj2BOOO83o3WyH59e8MgXsxEQVcarkUOpEYrubB0urwnN10yQ364rsiByU11nZlqWYZm05i/of7io4mzihBtQ==}
     engines: {node: '>=8'}
 
+  entities@8.0.0:
+    resolution: {integrity: sha512-zwfzJecQ/Uej6tusMqwAqU/6KL2XaB2VZ2Jg54Je6ahNBGNH6Ek6g3jjNCF0fG9EWQKGZNddNjU5F1ZQn/sBnA==}
+    engines: {node: '>=20.19.0'}
+
   error-stack-parser-es@1.0.5:
     resolution: {integrity: sha512-5qucVt2XcuGMcEGgWI7i+yZpmpByQ8J1lHhcL7PwqCwu9FPP3VUXzT4ltHe5i2z9dePwEHcDVOAfSnHsOlCXRA==}
 
@@ -750,6 +758,8 @@ snapshots:
   cookie@1.1.1: {}
 
   detect-libc@2.1.2: {}
+
+  entities@8.0.0: {}
 
   error-stack-parser-es@1.0.5: {}
 

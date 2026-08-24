@@ -15,5 +15,8 @@
   },
   "devDependencies": {
     "wrangler": "4.124.0"
+  },
+  "dependencies": {
+    "entities": "8.0.0"
   }
 }

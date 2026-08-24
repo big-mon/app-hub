@@ -53,6 +53,21 @@ test("converts meaningful HTML to Markdown and removes page chrome", () => {
   assert.doesNotMatch(markdown, /(?:Chrome badge|the docs\/docs|Ignore (?:navigation|footer|script))/i);
 });
 
+test("decodes WHATWG character references in text and attributes", () => {
+  const markdown = htmlToMarkdown(
+    `<p>Common &copy; and multi-code-point &NotEqualTilde; and text &copy=1.</p>
+     <p>Malformed &#x110000; &#xZZ; unknown &does-not-exist;</p>
+     <p><img alt="&copy; &NotEqualTilde; &#x110000; &#xZZ; &does-not-exist; &copy=1"></p>`,
+  );
+
+  assert.equal(
+    markdown,
+    "Common © and multi-code-point ≂̸ and text ©=1.\n\n"
+      + "Malformed � &#xZZ; unknown &does-not-exist;\n\n"
+      + "© ≂̸ � &#xZZ; &does-not-exist; &copy=1\n",
+  );
+});
+
 test("keeps non-control form content while dropping form controls", () => {
   const markdown = htmlToMarkdown(
     `<form>
