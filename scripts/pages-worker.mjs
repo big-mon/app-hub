@@ -236,6 +236,7 @@ function shouldDrop(node) {
   if (DROPPED_ELEMENTS.has(node.name)) return true;
   const attributes = node.attributes;
   if (Object.hasOwn(attributes, "hidden")) return true;
+  if (node.name === "dialog" && !Object.hasOwn(attributes, "open")) return true;
   const marker = [attributes.id, attributes.class, attributes.role]
     .filter(Boolean)
     .join(" ");
@@ -648,6 +649,12 @@ function renderList(node, baseUrl, indent = "") {
 function renderBlock(node, baseUrl) {
   if (node.type === "text") return renderInline(node, baseUrl);
   if (shouldDrop(node)) return "";
+  if (node.name === "details" && !Object.hasOwn(node.attributes, "open")) {
+    const summary = node.children.find(
+      (child) => child.type === "element" && child.name === "summary",
+    );
+    return summary ? renderBlock(summary, baseUrl) : "";
+  }
 
   if (/^h[1-6]$/.test(node.name)) {
     const level = Number(node.name.slice(1));
@@ -790,6 +797,7 @@ function attributeValue(source, name) {
 }
 
 function normalizeMetaCharset(label) {
+  if (label.trim().toLowerCase() === "x-user-defined") return "windows-1252";
   try {
     const encoding = new TextDecoder(label).encoding;
     return encoding === "utf-16le" || encoding === "utf-16be" ? "utf-8" : label;

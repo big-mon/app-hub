@@ -305,6 +305,28 @@ test("separates adjacent dialog containers", () => {
   );
 });
 
+test("omits closed dialogs while preserving open dialog block rendering", () => {
+  assert.equal(
+    htmlToMarkdown("<dialog>Secret</dialog><p>Visible</p>"),
+    "Visible\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<dialog open>Visible</dialog><p>After</p>"),
+    "Visible\n\nAfter\n",
+  );
+});
+
+test("renders only the summary for closed details while preserving open details", () => {
+  assert.equal(
+    htmlToMarkdown("<details><summary>More</summary><p>Secret</p></details>"),
+    "More\n",
+  );
+  assert.equal(
+    htmlToMarkdown("<details open><summary>More</summary><p>Secret</p></details>"),
+    "More\n\nSecret\n",
+  );
+});
+
 test("renders search as a block container", () => {
   assert.equal(
     htmlToMarkdown("<search><p>Find tools</p><p>Filters</p></search>"),
@@ -315,8 +337,8 @@ test("renders search as a block container", () => {
 test("preserves details and fieldset boundaries", () => {
   assert.equal(
     htmlToMarkdown(
-      "<details><summary>First summary</summary><p>First details</p></details>"
-        + "<details><summary>Second summary</summary><p>Second details</p></details>"
+      "<details open><summary>First summary</summary><p>First details</p></details>"
+        + "<details open><summary>Second summary</summary><p>Second details</p></details>"
         + "<fieldset><legend>First legend</legend><p>First fieldset</p></fieldset>"
         + "<fieldset><legend>Second legend</legend><p>Second fieldset</p></fieldset>",
     ),
@@ -727,6 +749,30 @@ test("uses an early HTML meta charset when Content-Type omits charset", async ()
   );
 
   assert.equal(await response.text(), "Café\n");
+});
+
+test("normalizes meta-derived x-user-defined to windows-1252", async () => {
+  const declarations = [
+    '<meta charset="x-user-defined">',
+    '<meta http-equiv="Content-Type" content="text/html; charset=x-user-defined">',
+  ];
+
+  for (const declaration of declarations) {
+    const originalBytes = Uint8Array.from([
+      ...new TextEncoder().encode(`${declaration}<main><p>Price `),
+      0x80,
+      ...new TextEncoder().encode("</p></main>"),
+    ]);
+    const response = await negotiateMarkdown(
+      new Request("https://example.test/", {
+        headers: { Accept: "text/markdown" },
+      }),
+      new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+    );
+
+    assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8", declaration);
+    assert.equal(await response.text(), "Price €\n", declaration);
+  }
 });
 
 test("normalizes case-insensitive UTF-16 meta charset labels to UTF-8", async () => {
