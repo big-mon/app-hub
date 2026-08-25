@@ -305,6 +305,13 @@ test("separates adjacent dialog containers", () => {
   );
 });
 
+test("renders search as a block container", () => {
+  assert.equal(
+    htmlToMarkdown("<search><p>Find tools</p><p>Filters</p></search>"),
+    "Find tools\n\nFilters\n",
+  );
+});
+
 test("preserves details and fieldset boundaries", () => {
   assert.equal(
     htmlToMarkdown(
@@ -704,6 +711,43 @@ test("uses an early HTML meta charset when Content-Type omits charset", async ()
   );
 
   assert.equal(await response.text(), "Café\n");
+});
+
+test("normalizes case-insensitive UTF-16 meta charset labels to UTF-8", async () => {
+  for (const label of ["UtF-16Le", "uTf-16Be"]) {
+    const response = await negotiateMarkdown(
+      new Request("https://example.test/", {
+        headers: { Accept: "text/markdown" },
+      }),
+      new Response(
+        new TextEncoder().encode(
+          `<meta charset="${label}"><main><p>Café</p></main>`,
+        ),
+        { headers: { "Content-Type": "text/html" } },
+      ),
+    );
+
+    assert.equal(await response.text(), "Café\n", label);
+  }
+});
+
+test("normalizes UTF-16 labels from http-equiv content-type meta declarations", async () => {
+  for (const label of ["UTF-16LE", "UTF-16BE"]) {
+    const response = await negotiateMarkdown(
+      new Request("https://example.test/", {
+        headers: { Accept: "text/markdown" },
+      }),
+      new Response(
+        new TextEncoder().encode(
+          `<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=${label}">`
+            + "<main><p>Café</p></main>",
+        ),
+        { headers: { "Content-Type": "text/html" } },
+      ),
+    );
+
+    assert.equal(await response.text(), "Café\n", label);
+  }
 });
 
 test("requires an exact HTML meta start tag when sniffing charset", async () => {

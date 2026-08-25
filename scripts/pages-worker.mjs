@@ -60,6 +60,7 @@ const BLOCK_ELEMENTS = new Set([
   "ol",
   "p",
   "pre",
+  "search",
   "section",
   "summary",
   "table",
@@ -756,7 +757,14 @@ function sniffHtmlCharset(bytes, transportCharset = null) {
   if (bytesStartWith(bytes, [0xef, 0xbb, 0xbf])) return "utf-8";
   if (bytesStartWith(bytes, [0xff, 0xfe])) return "utf-16le";
   if (bytesStartWith(bytes, [0xfe, 0xff])) return "utf-16be";
-  return transportCharset ?? sniffMetaCharset(bytes) ?? "utf-8";
+  if (transportCharset !== null) return transportCharset;
+
+  const metaCharset = sniffMetaCharset(bytes);
+  if (metaCharset === null) return "utf-8";
+  const metaEncoding = new TextDecoder(metaCharset).encoding;
+  return metaEncoding === "utf-16le" || metaEncoding === "utf-16be"
+    ? "utf-8"
+    : metaCharset;
 }
 
 export async function negotiateMarkdown(request, response) {
