@@ -66,14 +66,14 @@ test("preserves text after invalid tag candidates while dropping declarations", 
   assert.equal(htmlToMarkdown("<p>unterminated < text"), "unterminated \\< text\n");
 });
 
-test("preserves text for invalid end-tag candidates", () => {
+test("follows HTML tokenization for invalid end-tag candidates", () => {
   assert.equal(
     htmlToMarkdown("<p>left < /p> and right</p><p>Visible</p>"),
     "left \\< /p\\> and right\n\nVisible\n",
   );
   assert.equal(
     htmlToMarkdown("<p>left </ p> and right</p><p>Visible</p>"),
-    "left \\</ p\\> and right\n\nVisible\n",
+    "left  and right\n\nVisible\n",
   );
   assert.equal(
     htmlToMarkdown(
@@ -161,6 +161,27 @@ test("resolves links against the first valid document base", () => {
     ),
     "[Guide](https://example.test/docs/guide)\n",
   );
+});
+
+test("uses the HTML raw-text end-tag rules before rendering following content", () => {
+  assert.equal(
+    htmlToMarkdown("<script>ignored</script data-x><main>Visible</main>"),
+    "Visible\n",
+  );
+});
+
+test("does not use foreign SVG metadata as the HTML document base", () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<svg><base href="https://other.test/"></svg><a href="guide">Guide</a>',
+      "https://example.test/docs/",
+    ),
+    "[Guide](https://example.test/docs/guide)\n",
+  );
+});
+
+test("handles a malformed HTML comment before visible content", () => {
+  assert.equal(htmlToMarkdown("<!--><p>Visible</p>"), "Visible\n");
 });
 
 test("ignores base elements inside inert templates", () => {

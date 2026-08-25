@@ -1,25 +1,10 @@
-import { decodeHTML, decodeHTMLAttribute } from "entities/decode";
+import { parse as parseHtmlDocument } from "parse5";
 
 const MARKDOWN_MEDIA_TYPE = "text/markdown";
 const HTML_MEDIA_TYPE = "text/html";
 const HTML_ENCODING_SNIFF_LIMIT = 1024;
 const QVALUE_PATTERN = /^(?:0(?:\.\d{1,3})?|1(?:\.0{1,3})?)$/;
-const VOID_ELEMENTS = new Set([
-  "area",
-  "base",
-  "br",
-  "col",
-  "embed",
-  "hr",
-  "img",
-  "input",
-  "link",
-  "meta",
-  "param",
-  "source",
-  "track",
-  "wbr",
-]);
+const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 const DROPPED_ELEMENTS = new Set([
   "aside",
   "button",
@@ -42,25 +27,6 @@ const DROPPED_ELEMENTS = new Set([
   "svg",
   "template",
   "textarea",
-  "title",
-]);
-const RAW_TEXT_ELEMENTS = new Set([
-  "script",
-  "style",
-  "textarea",
-  "title",
-  "iframe",
-  "noembed",
-  "noscript",
-]);
-const HEAD_METADATA_ELEMENTS = new Set([
-  "base",
-  "link",
-  "meta",
-  "noscript",
-  "script",
-  "style",
-  "template",
   "title",
 ]);
 const BLOCK_ELEMENTS = new Set([
@@ -107,11 +73,6 @@ const BLOCK_ELEMENTS = new Set([
   "body",
   "ul",
 ]);
-const P_IMPLIED_END_TAG_STARTS = BLOCK_ELEMENTS;
-const LIST_CONTAINERS = new Set(["menu", "ol", "ul"]);
-const DEFINITION_LIST_CONTAINERS = new Set(["dl"]);
-const LIST_ITEM_END_TAGS = new Set(["li"]);
-const DEFINITION_ITEM_END_TAGS = new Set(["dt", "dd"]);
 const NAVIGATION_MARKER = /(?:^|[\s_-])(?:nav|navigation|menu|breadcrumb|breadcrumbs|sidebar|cookie|consent|badge|dot|decorative)(?:$|[\s_-])/i;
 const FENCED_BLOCK_START = "\u0000fenced-block-start\u0000";
 const FENCED_BLOCK_END = "\u0000fenced-block-end\u0000";
@@ -196,10 +157,6 @@ export function acceptsMarkdown(acceptHeader) {
   return parseMarkdownAccept(acceptHeader).some((quality) => quality > 0);
 }
 
-function decodeHtmlEntities(value, mode = "text") {
-  return mode === "attribute" ? decodeHTMLAttribute(value) : decodeHTML(value);
-}
-
 function findTagEnd(html, start) {
   let quote = null;
   for (let index = start; index < html.length; index += 1) {
@@ -215,153 +172,43 @@ function findTagEnd(html, start) {
   return -1;
 }
 
-function parseAttributes(source) {
+function adaptAttributes(sourceAttributes) {
   const attributes = Object.create(null);
-  const attributePattern = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
-  for (const match of source.matchAll(attributePattern)) {
-    const name = match[1].toLowerCase();
-    if (Object.hasOwn(attributes, name)) continue;
-    attributes[name] = decodeHtmlEntities(
-      match[2] ?? match[3] ?? match[4] ?? "",
-      "attribute",
-    );
+  for (const attribute of sourceAttributes ?? []) {
+    if (Object.hasOwn(attributes, attribute.name)) continue;
+    attributes[attribute.name] = attribute.value;
   }
   return attributes;
 }
 
-function parseTag(source) {
-  const closing = source.match(/^<\/([A-Za-z][\w:-]*)\s*>$/);
-  if (closing) return { closing: true, name: closing[1].toLowerCase() };
+function adaptNode(node) {
+  if (node.nodeName === "#text") {
+    return { type: "text", value: node.value };
+  }
+  if (node.nodeName === "#comment" || node.nodeName === "#documentType") return null;
+  if (!node.tagName) return null;
 
-  const opening = source.match(/^<([A-Za-z][\w:-]*)([\s\S]*?)>$/);
-  if (!opening) return null;
-
-  const rawAttributes = opening[2];
-  const selfClosingMarker = rawAttributes.match(/(?:^|\s)\/\s*$/);
-  const selfClosing = Boolean(selfClosingMarker);
+  const childNodes = node.nodeName === "template" && node.content
+    ? node.content.childNodes
+    : node.childNodes;
   return {
-    closing: false,
-    name: opening[1].toLowerCase(),
-    attributes: parseAttributes(
-      selfClosingMarker ? rawAttributes.slice(0, selfClosingMarker.index) : rawAttributes,
-    ),
-    selfClosing,
+    type: "element",
+    name: node.tagName,
+    namespace: node.namespaceURI,
+    attributes: adaptAttributes(node.attrs),
+    children: (childNodes ?? []).map(adaptNode).filter(Boolean),
   };
-}
-
-function findRawTextEnd(html, start, name) {
-  const closingPattern = new RegExp(`</${name}\\s*>`, "ig");
-  closingPattern.lastIndex = start;
-  const closing = closingPattern.exec(html);
-  return closing ? closing.index + closing[0].length : html.length;
-}
-
-function closeImpliedElements(stack, name) {
-  if (stack.at(-1)?.name === "head" && !HEAD_METADATA_ELEMENTS.has(name)) {
-    stack.pop();
-  }
-
-  const impliedGroup = name === "li"
-    ? LIST_ITEM_END_TAGS
-    : name === "dt" || name === "dd"
-      ? DEFINITION_ITEM_END_TAGS
-      : null;
-  const scopeBoundary = name === "li"
-    ? LIST_CONTAINERS
-    : name === "dt" || name === "dd"
-      ? DEFINITION_LIST_CONTAINERS
-      : null;
-
-  if (impliedGroup) {
-    for (let index = stack.length - 1; index > 0; index -= 1) {
-      if (scopeBoundary.has(stack[index].name)) break;
-      if (impliedGroup.has(stack[index].name)) {
-        stack.length = index;
-        return;
-      }
-    }
-  }
-
-  if (P_IMPLIED_END_TAG_STARTS.has(name)) {
-    for (let index = stack.length - 1; index > 0; index -= 1) {
-      if (stack[index].name === "p") {
-        stack.length = index;
-        return;
-      }
-    }
-  }
 }
 
 function parseHtml(html) {
-  const root = { type: "element", name: "root", attributes: {}, children: [] };
-  const stack = [root];
-  let cursor = 0;
-
-  const appendText = (value) => {
-    if (hasHtmlText(value) && stack.at(-1)?.name === "head") stack.pop();
-    if (value) stack.at(-1).children.push({ type: "text", value });
+  const document = parseHtmlDocument(html);
+  return {
+    type: "element",
+    name: "root",
+    namespace: null,
+    attributes: Object.create(null),
+    children: (document.childNodes ?? []).map(adaptNode).filter(Boolean),
   };
-
-  while (cursor < html.length) {
-    const opening = html.indexOf("<", cursor);
-    if (opening < 0) {
-      appendText(html.slice(cursor));
-      break;
-    }
-    if (opening > cursor) appendText(html.slice(cursor, opening));
-
-    if (html.startsWith("<!--", opening)) {
-      const commentEnd = html.indexOf("-->", opening + 4);
-      cursor = commentEnd < 0 ? html.length : commentEnd + 3;
-      continue;
-    }
-
-    const tagEnd = findTagEnd(html, opening + 1);
-    if (tagEnd < 0) {
-      appendText(html.slice(opening));
-      break;
-    }
-
-    const candidate = html.slice(opening, tagEnd + 1);
-    const tag = parseTag(candidate);
-    if (!tag) {
-      if (candidate.startsWith("<!")) {
-        cursor = tagEnd + 1;
-      } else {
-        appendText("<");
-        cursor = opening + 1;
-      }
-      continue;
-    }
-    cursor = tagEnd + 1;
-    if (tag.closing) {
-      for (let index = stack.length - 1; index > 0; index -= 1) {
-        if (stack[index].name === tag.name) {
-          stack.length = index;
-          break;
-        }
-      }
-      continue;
-    }
-
-    closeImpliedElements(stack, tag.name);
-    const node = {
-      type: "element",
-      name: tag.name,
-      attributes: tag.attributes,
-      children: [],
-    };
-    stack.at(-1).children.push(node);
-    const isForeignContent = tag.name === "svg" || stack.some((element) => element.name === "svg");
-    const honorsSelfClosing = tag.selfClosing && isForeignContent;
-    if (!honorsSelfClosing && RAW_TEXT_ELEMENTS.has(tag.name)) {
-      cursor = findRawTextEnd(html, cursor, tag.name);
-      continue;
-    }
-    if (!honorsSelfClosing && !VOID_ELEMENTS.has(tag.name)) stack.push(node);
-  }
-
-  return root;
 }
 
 function shouldDrop(node) {
@@ -375,7 +222,7 @@ function shouldDrop(node) {
 }
 
 function textContent(node, preserveWhitespace = false) {
-  if (node.type === "text") return decodeHtmlEntities(node.value);
+  if (node.type === "text") return node.value;
   if (shouldDrop(node)) return "";
   return node.children
     .map((child) => textContent(child, preserveWhitespace))
@@ -383,7 +230,7 @@ function textContent(node, preserveWhitespace = false) {
 }
 
 function preformattedTextContent(node) {
-  if (node.type === "text") return decodeHtmlEntities(node.value);
+  if (node.type === "text") return node.value;
   if (shouldDrop(node)) return "";
   if (node.name === "br") return "\n";
   return node.children.map((child) => preformattedTextContent(child)).join("");
@@ -513,7 +360,10 @@ function resolveLink(value, baseUrl) {
 }
 
 function resolveDocumentBase(node, requestUrl) {
-  if (node.type !== "element") return null;
+  if (
+    node.type !== "element"
+    || (node.name !== "root" && node.namespace !== HTML_NAMESPACE)
+  ) return null;
   if (node.name === "template") return null;
   if (node.name === "base") {
     const base = resolveLink(node.attributes.href, requestUrl);
@@ -530,7 +380,7 @@ function resolveDocumentBase(node, requestUrl) {
 
 function renderInline(node, baseUrl) {
   if (node.type === "text") {
-    return escapeMarkdownText(normalizeInlineText(decodeHtmlEntities(node.value)));
+    return escapeMarkdownText(normalizeInlineText(node.value));
   }
   if (shouldDrop(node)) return "";
 
