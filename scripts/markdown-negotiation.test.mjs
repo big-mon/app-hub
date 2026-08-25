@@ -697,6 +697,22 @@ test("decodes quoted charset labels case-insensitively before Markdown negotiati
   assert.equal(await response.text(), "Café\n");
 });
 
+test("ignores charset-like text inside quoted Content-Type parameters", async () => {
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(new TextEncoder().encode("<main><p>Café</p></main>"), {
+      headers: {
+        "Content-Type": 'text/html; note="x; charset=windows-1252; y"; charset=utf-8',
+      },
+    }),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
+  assert.equal(await response.text(), "Café\n");
+});
+
 test("uses an early HTML meta charset when Content-Type omits charset", async () => {
   const originalBytes = Uint8Array.from([
     ...new TextEncoder().encode('<meta charset="windows-1252"><main><p>Caf'),
@@ -750,6 +766,22 @@ test("normalizes UTF-16 labels from http-equiv content-type meta declarations", 
   }
 });
 
+test("ignores charset-like text inside quoted http-equiv content parameters", async () => {
+  const originalBytes = new TextEncoder().encode(
+    `<meta HTTP-EQUIV="Content-Type" CONTENT="text/html; note='x; charset=windows-1252; y'; charset=utf-8">`
+      + "<main><p>Café</p></main>",
+  );
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
+  assert.equal(await response.text(), "Café\n");
+});
+
 test("requires an exact HTML meta start tag when sniffing charset", async () => {
   const originalBytes = new TextEncoder().encode(
     '<meta-widget charset="windows-1252"><meta charset="utf-8"><p>Café</p>',
@@ -769,6 +801,40 @@ test("recognizes quoted greater-than delimiters while sniffing meta charset", as
     ...new TextEncoder().encode('<meta data-note=">" charset="windows-1252"><main><p>Caf'),
     0xe9,
     ...new TextEncoder().encode("</p></main>"),
+  ]);
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("ignores charset-like text inside quoted meta attribute values", async () => {
+  const originalBytes = new TextEncoder().encode(
+    '<meta data-note=" charset=windows-1252" charset=utf-8><p>Café</p>',
+  );
+  const response = await negotiateMarkdown(
+    new Request("https://example.test/", {
+      headers: { Accept: "text/markdown" },
+    }),
+    new Response(originalBytes, { headers: { "Content-Type": "text/html" } }),
+  );
+
+  assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
+  assert.equal(await response.text(), "Café\n");
+});
+
+test("continues meta charset sniffing after an invalid label", async () => {
+  const originalBytes = Uint8Array.from([
+    ...new TextEncoder().encode(
+      '<meta charset="x-invalid"><meta charset="windows-1252"><p>Caf',
+    ),
+    0xe9,
+    ...new TextEncoder().encode("</p>"),
   ]);
   const response = await negotiateMarkdown(
     new Request("https://example.test/", {

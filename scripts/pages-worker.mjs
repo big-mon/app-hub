@@ -120,6 +120,26 @@ function splitHeaderValue(value, separator) {
   return parts;
 }
 
+function charsetParameter(value, includeFirst = false) {
+  const parts = splitHeaderValue(value, ";");
+  const start = includeFirst ? 0 : 1;
+  for (let index = start; index < parts.length; index += 1) {
+    const parameter = parts[index];
+    const equals = parameter.indexOf("=");
+    if (equals < 0 || parameter.slice(0, equals).trim().toLowerCase() !== "charset") {
+      continue;
+    }
+
+    const match = parameter
+      .slice(equals + 1)
+      .trim()
+      .match(/^(?:"([^"]*)"|'([^']*)'|([^;\s]*))$/);
+    return match?.[1] ?? match?.[2] ?? match?.[3] ?? null;
+  }
+
+  return null;
+}
+
 function parseMarkdownAccept(acceptHeader) {
   if (typeof acceptHeader !== "string") return [];
 
@@ -725,32 +745,85 @@ function asciiPrefix(bytes) {
 }
 
 function attributeValue(source, name) {
-  const match = source.match(
-    new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'=<>\\x60]+))`, "i"),
-  );
-  return match?.[1] ?? match?.[2] ?? match?.[3] ?? null;
+  const target = name.toLowerCase();
+  let index = source.startsWith("<") ? 1 : 0;
+  while (index < source.length && !/[\t\n\f\r />]/.test(source[index])) index += 1;
+
+  while (index < source.length) {
+    while (index < source.length && /[\t\n\f\r ]/.test(source[index])) index += 1;
+    if (index >= source.length || source[index] === ">" || source[index] === "/") return null;
+
+    const nameStart = index;
+    while (index < source.length && !/[\t\n\f\r />=]/.test(source[index])) index += 1;
+    if (index === nameStart) {
+      index += 1;
+      continue;
+    }
+
+    const attributeName = source.slice(nameStart, index).toLowerCase();
+    while (index < source.length && /[\t\n\f\r ]/.test(source[index])) index += 1;
+
+    let value = null;
+    if (source[index] === "=") {
+      index += 1;
+      while (index < source.length && /[\t\n\f\r ]/.test(source[index])) index += 1;
+      if (index < source.length && source[index] !== ">" && source[index] !== "/") {
+        const quote = source[index] === '"' || source[index] === "'"
+          ? source[index]
+          : null;
+        if (quote) index += 1;
+        const valueStart = index;
+        if (quote) {
+          while (index < source.length && source[index] !== quote) index += 1;
+        } else {
+          while (index < source.length && !/[\t\n\f\r "'=<>\x60]/.test(source[index])) index += 1;
+        }
+        value = source.slice(valueStart, index);
+        if (quote && index < source.length) index += 1;
+      }
+    }
+
+    if (attributeName === target) return value;
+  }
+
+  return null;
+}
+
+function normalizeMetaCharset(label) {
+  try {
+    const encoding = new TextDecoder(label).encoding;
+    return encoding === "utf-16le" || encoding === "utf-16be" ? "utf-8" : label;
+  } catch {
+    return null;
+  }
 }
 
 function sniffMetaCharset(bytes) {
   const prefix = asciiPrefix(bytes).replace(/<!--[\s\S]*?(?:-->|$)/g, "");
+  let invalidCharset = null;
   for (const match of prefix.matchAll(/<meta(?=[\t\n\f\r />])/gi)) {
     const tagEnd = findTagEnd(prefix, match.index + 1);
     if (tagEnd < 0) continue;
     const tag = prefix.slice(match.index, tagEnd + 1);
     const charset = attributeValue(tag, "charset");
-    if (charset !== null) return charset;
+    if (charset !== null) {
+      const normalizedCharset = normalizeMetaCharset(charset);
+      if (normalizedCharset !== null) return normalizedCharset;
+      invalidCharset ??= charset;
+    }
 
     if (attributeValue(tag, "http-equiv")?.trim().toLowerCase() !== "content-type") continue;
     const content = attributeValue(tag, "content");
-    const contentCharset = content?.match(
-      /(?:^|;)\s*charset\s*=\s*(?:"([^"]*)"|'([^']*)'|([^;\s]*))/i,
-    );
-    if (contentCharset) {
-      return contentCharset[1] ?? contentCharset[2] ?? contentCharset[3] ?? "";
+    if (content !== null) {
+      const label = charsetParameter(content, true);
+      if (label === null) continue;
+      const normalizedCharset = normalizeMetaCharset(label);
+      if (normalizedCharset !== null) return normalizedCharset;
+      invalidCharset ??= label;
     }
   }
 
-  return null;
+  return invalidCharset;
 }
 
 function sniffHtmlCharset(bytes, transportCharset = null) {
@@ -760,11 +833,7 @@ function sniffHtmlCharset(bytes, transportCharset = null) {
   if (transportCharset !== null) return transportCharset;
 
   const metaCharset = sniffMetaCharset(bytes);
-  if (metaCharset === null) return "utf-8";
-  const metaEncoding = new TextDecoder(metaCharset).encoding;
-  return metaEncoding === "utf-16le" || metaEncoding === "utf-16be"
-    ? "utf-8"
-    : metaCharset;
+  return metaCharset ?? "utf-8";
 }
 
 export async function negotiateMarkdown(request, response) {
@@ -788,13 +857,10 @@ export async function negotiateMarkdown(request, response) {
   }
 
   const contentType = response.headers.get("Content-Type") ?? "";
-  const charsetMatch = contentType.match(/;\s*charset\s*=\s*(?:"([^"]*)"|([^;\s]*))/i);
   let html;
   try {
     const bytes = new Uint8Array(await response.clone().arrayBuffer());
-    const transportCharset = charsetMatch
-      ? charsetMatch[1] ?? charsetMatch[2]
-      : null;
+    const transportCharset = charsetParameter(contentType);
     const charset = sniffHtmlCharset(bytes, transportCharset);
     html = new TextDecoder(charset, { fatal: true }).decode(bytes);
   } catch {
