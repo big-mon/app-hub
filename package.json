@@ -15,5 +15,9 @@
   },
   "devDependencies": {
     "wrangler": "4.125.0"
+  },
+  "dependencies": {
+    "@markdown-for-agents/web": "1.3.4",
+    "markdown-for-agents": "1.3.4"
   }
 }

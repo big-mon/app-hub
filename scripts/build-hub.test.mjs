@@ -738,12 +738,17 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
     ]);
     for (const relativePath of [
       "index.html",
+      "_worker.js",
       "amazon-link-cleaner-cloudflare/index.html",
       "sorting-visualizer-web/index.html",
       "image-compressor-web/index.html",
     ]) {
       assert.equal(await exists(path.join(tempRoot, "dist", relativePath)), true, relativePath);
     }
+    assert.match(
+      await readFile(path.join(tempRoot, "dist", "_worker.js"), "utf8"),
+      /markdownMiddleware/,
+    );
     for (const slug of [
       "amazon-link-cleaner-cloudflare",
       "sorting-visualizer-web",
