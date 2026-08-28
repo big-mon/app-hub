@@ -367,6 +367,10 @@ async function buildHub(root = process.cwd()) {
   const distDir = path.join(root, "dist");
   const toolsRaw = await fs.readFile(toolsPath, "utf8");
   const tools = validateTools(JSON.parse(toolsRaw));
+  const workerSource = await fs.readFile(
+    path.join(path.dirname(fileURLToPath(import.meta.url)), "pages-worker.mjs"),
+    "utf8",
+  );
 
   await fs.rm(tmpDir, { recursive: true, force: true });
   await fs.rm(distDir, { recursive: true, force: true });
@@ -419,6 +423,7 @@ async function buildHub(root = process.cwd()) {
   }
 
   await buildIndex(root, distDir, tools);
+  await fs.writeFile(path.join(distDir, "_worker.js"), workerSource);
   await fs.writeFile(path.join(distDir, "robots.txt"), renderRobots());
   await fs.writeFile(path.join(distDir, "sitemap.xml"), renderSitemap(tools));
 }
