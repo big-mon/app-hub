@@ -1,7 +1,7 @@
 import { markdownMiddleware } from "@markdown-for-agents/web";
 
 const MARKDOWN_MEDIA_TYPE = "text/markdown";
-const QVALUE_PATTERN = /^(?:0(?:\.\d{1,3})?|1(?:\.0{1,3})?)$/;
+const QVALUE_PATTERN = /^(?:0(?:\.\d{0,3})?|1(?:\.0{0,3})?)$/;
 const MIDDLEWARE_OPTIONS = {
   extract: true,
   contentSignal: { aiTrain: false, search: true, aiInput: true },

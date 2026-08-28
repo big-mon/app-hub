@@ -100,6 +100,18 @@ test("converts a successful HTML GET through the public middleware", async () =>
   assert.equal(await responseBody.text(), body);
 });
 
+test("accepts a qvalue with an empty fractional part", async () => {
+  const request = new Request("https://example.test/", {
+    headers: { Accept: "text/markdown; q=1." },
+  });
+  const assets = environment(htmlResponse("<main><h1>Full quality Markdown</h1></main>"));
+
+  const response = await worker.fetch(request, assets.env);
+
+  assert.equal(response.headers.get("Content-Type"), "text/markdown; charset=utf-8");
+  assert.match(await response.text(), /^# Full quality Markdown$/m);
+});
+
 test("keeps HTML when text/markdown is explicitly q=0", async () => {
   const request = new Request("https://example.test/", {
     headers: { Accept: "text/html, text/markdown; q=0" },
