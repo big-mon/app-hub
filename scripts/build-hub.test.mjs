@@ -129,7 +129,7 @@ test("the image compressor registration has the requested node-tool contract", a
     title: "ローカルで画像をトリミング・圧縮",
     repo: "https://github.com/big-mon/image-compressor-web",
     type: "node",
-    build: "pnpm --ignore-workspace install --frozen-lockfile && pnpm run build",
+    build: "pnpm --ignore-workspace install --frozen-lockfile && pnpm --ignore-workspace run build",
     outDir: "dist",
     basePathEnv: "BASE_PATH",
   });
@@ -668,9 +668,10 @@ test("preflight validation runs before filesystem mutation for unsafe manifests"
   }
 });
 
-test("offline fixture orchestration copies static tools and a base-path node tool", async (t) => {
+test("fixture orchestration isolates a differently pinned pnpm tool and copies its base-path build", async (t) => {
   let fixture;
   let server;
+  const { packageManager } = JSON.parse(await readFile(path.join(REPO_ROOT, "package.json"), "utf8"));
 
   const fakeGitScript = `#!/usr/bin/env node
 import { mkdir, writeFile } from "node:fs/promises";
@@ -685,12 +686,18 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
   await mkdir(path.join(destination, "public"), { recursive: true });
   await writeFile(path.join(destination, "public", "index.html"), "<p>fixture static</p>\\n");
 } else if (repo.includes("image-compressor-web")) {
+  // Reproduce the enclosing Hub workspace that used to select the wrong pnpm for run.
+  const hubRoot = path.resolve(destination, "../..");
+  await writeFile(path.join(hubRoot, "package.json"), JSON.stringify({ packageManager: ${JSON.stringify(packageManager)} }));
+  await writeFile(path.join(hubRoot, "pnpm-workspace.yaml"), "packages: []\\n");
   await writeFile(
     path.join(destination, "package.json"),
     JSON.stringify({
       name: "fixture-image-compressor-web",
       private: true,
       type: "module",
+      packageManager: "pnpm@11.22.0",
+      engines: { pnpm: "11.22.0" },
       scripts: { build: "node build.mjs" },
     }),
   );
@@ -702,6 +709,8 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
     path.join(destination, "build.mjs"),
     [
       'import { mkdir, writeFile } from "node:fs/promises";',
+      'import assert from "node:assert/strict";',
+      'assert.ok(process.env.npm_config_user_agent.startsWith("pnpm/11.22.0 "), process.env.npm_config_user_agent);',
       'const base = process.env.BASE_PATH;',
       'if (base !== "/image-compressor-web/") throw new Error("unexpected BASE_PATH: " + base);',
       'await mkdir("dist/assets", { recursive: true });',
