@@ -18,7 +18,7 @@
     "title": "ローカルで画像をトリミング・圧縮",
     "repo": "https://github.com/big-mon/image-compressor-web",
     "type": "node",
-    "build": "pnpm --ignore-workspace install --frozen-lockfile && pnpm run build",
+    "build": "export NPM_CONFIG_WORKSPACE_DIR=\"$PWD\" && pnpm --ignore-workspace install --frozen-lockfile && pnpm --ignore-workspace run build",
     "outDir": "dist",
     "basePathEnv": "BASE_PATH"
   }
