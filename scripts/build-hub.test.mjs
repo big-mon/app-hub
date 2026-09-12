@@ -129,7 +129,7 @@ test("the image compressor registration has the requested node-tool contract", a
     title: "ローカルで画像をトリミング・圧縮",
     repo: "https://github.com/big-mon/image-compressor-web",
     type: "node",
-    build: "pnpm --ignore-workspace install --frozen-lockfile && pnpm --ignore-workspace run build",
+    build: "export NPM_CONFIG_WORKSPACE_DIR=\"$PWD\" && pnpm --ignore-workspace install --frozen-lockfile && pnpm --ignore-workspace run build",
     outDir: "dist",
     basePathEnv: "BASE_PATH",
   });
@@ -672,6 +672,7 @@ test("fixture orchestration isolates a differently pinned pnpm tool and copies i
   let fixture;
   let server;
   const { packageManager } = JSON.parse(await readFile(path.join(REPO_ROOT, "package.json"), "utf8"));
+  const fixtureLockfile = "lockfileVersion: '9.0'\n\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n\nimporters:\n\n  .: {}\n";
 
   const fakeGitScript = `#!/usr/bin/env node
 import { mkdir, writeFile } from "node:fs/promises";
@@ -703,7 +704,7 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
   );
   await writeFile(
     path.join(destination, "pnpm-lock.yaml"),
-    "lockfileVersion: '9.0'\\n\\nsettings:\\n  autoInstallPeers: true\\n  excludeLinksFromLockfile: false\\n\\nimporters:\\n\\n  .: {}\\n",
+    ${JSON.stringify(fixtureLockfile)},
   );
   await writeFile(
     path.join(destination, "build.mjs"),
@@ -731,6 +732,10 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
     fixture = await runFixtureBuild(tools, fakeGitScript, {}, 30_000);
     const { tempRoot, result, output } = fixture;
     assert.equal(result.status, 0, output);
+    assert.equal(
+      await readFile(path.join(tempRoot, "_tmp", "image-compressor-web", "pnpm-lock.yaml"), "utf8"),
+      fixtureLockfile,
+    );
 
     const hubHtml = await readFile(path.join(tempRoot, "dist", "index.html"), "utf8");
     assert.equal(

@@ -29,7 +29,7 @@ pnpm run build
 - `basePathEnv` を指定すると、ビルド時に `/<slug>/` を環境変数へ渡します
 - `src` と `outDir` はclone rootの外へ出ない相対pathにします
 - 公開する `src`/`outDir` の配下はシンボリックリンクを拒否し、`.git` のディレクトリ/エントリは除外します（`src: "."` も利用できます）
-- `_tmp` 配下にcloneするpnpmのnodeツールは、installとrunの両方に `--ignore-workspace` を付けます。Hub workspaceのpnpmではなく、子リポジトリの `packageManager` に固定したpnpmで依存関係とbuildを実行します
+- `_tmp` 配下にcloneするpnpmのnodeツールは、`NPM_CONFIG_WORKSPACE_DIR="$PWD"` で子リポジトリをworkspace解決の起点にし、installとrunの両方に `--ignore-workspace` を付けます。pnpm 12の起動時の版選択も含め、子の `packageManager` に固定したpnpmを使います。子のlockfileを書き換えずにfrozen installします
 - manifestに登録したnodeリポジトリと依存関係・install/buildスクリプトは、登録時に信頼するコードです。`build` は追跡対象manifestのshell契約として実行します。
 
 nodeツールの例:
@@ -40,7 +40,7 @@ nodeツールの例:
   "title": "ローカルで画像をトリミング・圧縮",
   "repo": "https://github.com/big-mon/image-compressor-web",
   "type": "node",
-  "build": "pnpm --ignore-workspace install --frozen-lockfile && pnpm --ignore-workspace run build",
+  "build": "export NPM_CONFIG_WORKSPACE_DIR=\"$PWD\" && pnpm --ignore-workspace install --frozen-lockfile && pnpm --ignore-workspace run build",
   "outDir": "dist",
   "basePathEnv": "BASE_PATH"
 }
