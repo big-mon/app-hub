@@ -39,5 +39,12 @@
 - Every gate required by the applicable Change and verification matrix row must pass.
 - Report commands run, artifacts checked, changed files, and unresolved risks.
 - Keep `_tmp`, `dist`, and `node_modules` ignored; do not commit generated output.
-- Do not commit, push, open or update PRs, merge, deploy, or mutate GitHub/Cloudflare unless the
-  user gives explicit approval for that external action.
+- An implementation request authorizes task-scoped commits, pushes, and creating or updating one
+  Open, non-Draft PR after local verification. Request Codex review as part of that workflow;
+  do not ask again for actions already authorized in the task.
+- Merge only with user authorization, passing required CI on the final head, and a completed
+  Codex review of that head reporting no findings. Address findings, reply, resolve and read back
+  all review threads, then request review again after fixes. Running, skipped, failed, or missing
+  reviews do not satisfy this gate.
+- An authorized push or merge includes its configured workflow triggers. Manual deployments and
+  unrelated GitHub/Cloudflare changes still require explicit user approval.
