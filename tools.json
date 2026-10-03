@@ -30,6 +30,6 @@
     "build": "python3 scripts/build_data.py && python3 scripts/build_basemap.py",
     "outDir": "public",
     "apiWorker": "api-worker.mjs",
-    "commit": "2c0c15534deb3e938006c6847781a7eea0bb4412"
+    "commit": "3493ebe9b8ec357f334901bea34f0475278c9fc2"
   }
 ]
