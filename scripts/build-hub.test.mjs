@@ -633,6 +633,8 @@ test("root index metadata identifies the canonical site and describes the hub", 
 
 test("preflight validation runs before filesystem mutation for unsafe manifests", async () => {
   const cases = [
+    {tools: [staticTool({commit: "main"})], error: /commit/i},
+    {tools: [staticTool({apiWorker: "../outside.mjs"})], error: /apiWorker/i},
     {
       tools: [staticTool({ slug: "../escape", repo: "not-a-repo" })],
       error: /slug/i,
@@ -679,6 +681,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 const args = process.argv.slice(2);
+if (["fetch", "checkout"].includes(args[0])) process.exit(0);
 const repo = args.at(-2);
 const destination = args.at(-1);
 await mkdir(destination, { recursive: true });
@@ -723,6 +726,8 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
     ].join("\\n"),
   );
 } else if (repo.includes("rail-meet")) {
+  await mkdir(path.join(destination, "public"), { recursive: true });
+  await writeFile(path.join(destination, "public", "api-worker.mjs"), "export default {fetch: () => new Response('api fixture')}\\n");
   // No package.json: the registered Python build must work without an install.
   await mkdir(path.join(destination, "public"), { recursive: true });
   await mkdir(path.join(destination, "scripts"), { recursive: true });
@@ -771,7 +776,7 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       assert.equal(await exists(path.join(tempRoot, "dist", relativePath)), true, relativePath);
     }
     assert.match(
-      await readFile(path.join(tempRoot, "dist", "_worker.js"), "utf8"),
+      await readFile(path.join(tempRoot, "dist", "_pages-worker.mjs"), "utf8"),
       /markdownMiddleware/,
     );
     for (const slug of [
@@ -860,4 +865,33 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
     }
     if (fixture) await rm(fixture.tempRoot, { recursive: true, force: true });
   }
+});
+
+
+test("API entries and commit pins validate before build side effects", () => {
+  for (const commit of ["main", "a".repeat(39), "../main", null, 42]) {
+    assert.throws(() => hub.validateTools([staticTool({commit})]), /commit/);
+  }
+  for (const apiWorker of ["../outside.mjs", "/tmp/outside.mjs", ".git/api.mjs", "api.js", null]) {
+    assert.throws(() => hub.validateTools([staticTool({apiWorker})]), /apiWorker/);
+  }
+  assert.doesNotThrow(() => hub.validateTools([staticTool({commit:"a".repeat(40), apiWorker:"api.mjs"})]));
+});
+
+test("generated worker scopes API routes and preserves the pages fallback", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "hub-api-"));
+  try {
+    await mkdir(path.join(root, "rail-meet"));
+    await writeFile(path.join(root, "rail-meet", "api.mjs"), "export default {fetch: r => new Response('api:' + r.method)};");
+    await writeFile(path.join(root, "_pages-worker.mjs"), "export default {fetch: () => new Response('pages')};");
+    await writeFile(path.join(root, "worker.mjs"), hub.renderWorker([{slug:"rail-meet",apiWorker:"api.mjs"}], "unused"));
+    const {default:worker} = await import(pathToFileURL(path.join(root, "worker.mjs")));
+    for (const route of ["/rail-meet/api", "/rail-meet/api/v1/stations", "/rail-meet/api/unknown"]) {
+      assert.equal(await (await worker.fetch(new Request("https://example.test" + route))).text(), "api:GET");
+    }
+    for (const route of ["/", "/rail-meet/", "/rail-meet/apiary", "/other/api/v1/stations"]) {
+      assert.equal(await (await worker.fetch(new Request("https://example.test" + route))).text(), "pages");
+    }
+    assert.equal(hub.renderWorker([], "original"), "original");
+  } finally { await rm(root,{recursive:true,force:true}); }
 });

@@ -111,3 +111,10 @@ staticツールはサブパス配信のため、`/assets/...` のような絶対
 ## ライセンス
 
 このリポジトリは [MIT License](LICENSE) です。
+
+
+### 任意のAPI Worker
+
+`tools.json` の `apiWorker` は配信ディレクトリ内の `.mjs` エントリです。default export の `fetch(request, env, ctx)` を `/<slug>/api` とその配下だけに接続し、その他は既存の静的配信・Markdown変換を維持します。登録コードは既存buildと同じ信頼境界です。`commit` に40桁SHAを指定すると、そのコミットを取得してビルドします。
+
+rail-meetは既存の計算モジュールと生成JSONをWorkerへ同梱します。APIの仕様は `/rail-meet/developers`、OpenAPIは `/rail-meet/openapi.json`。IP別の制限は実行単位のベストエフォートで、全拠点共通の課金上限ではありません。API本番公開前に既存プランの使用枠・超過時挙動を確認し、必要なら別途承認を得てプラットフォーム側制限を設定してください。この変更では契約・bindings・セキュリティ設定を追加しません。

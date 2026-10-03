@@ -9,7 +9,7 @@ const SITEMAP_NAMESPACE = "http://www.sitemaps.org/schemas/sitemap/0.9";
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const REPO_PATH_PATTERN = /^\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/;
-const COMMON_KEYS = new Set(["slug", "title", "name", "repo", "type"]);
+const COMMON_KEYS = new Set(["slug", "title", "name", "repo", "type", "commit", "apiWorker"]);
 const ALLOWED_KEYS_BY_TYPE = {
   static: new Set([...COMMON_KEYS, "src"]),
   node: new Set([...COMMON_KEYS, "build", "outDir", "basePathEnv"]),
@@ -176,6 +176,13 @@ export function validateTools(tools) {
     }
 
     assertRepo(tool.repo, slug);
+    if (Object.hasOwn(tool, "commit") && (typeof tool.commit !== "string" || !/^[a-f0-9]{40}$/.test(tool.commit))) {
+      throw new Error(`Invalid commit for ${slug}: expected a full lowercase Git SHA`);
+    }
+    if (Object.hasOwn(tool, "apiWorker")) {
+      assertRelativePath(tool.apiWorker, "apiWorker", slug);
+      if (!tool.apiWorker.endsWith(".mjs")) throw new Error(`Invalid apiWorker for ${slug}: expected .mjs`);
+    }
 
     if (tool.type !== "static" && tool.type !== "node") {
       throw new Error(`Invalid type for ${slug}: expected static or node`);
@@ -347,10 +354,15 @@ async function buildIndex(root, distDir, tools) {
   }
 }
 
-function cloneRepository(repo, destination) {
+function cloneRepository(repo, destination, commit) {
   execFileSync("git", ["clone", "--depth", "1", repo, destination], {
     stdio: "inherit",
   });
+  if (commit) {
+    execFileSync("git", ["fetch", "--depth", "1", "origin", commit], { cwd: destination, stdio: "inherit" });
+    execFileSync("git", ["checkout", "--detach", commit], { cwd: destination, stdio: "inherit" });
+    console.log(`==> Pinned ${repo} to ${commit}`);
+  }
 }
 
 function runTrackedBuild(buildCommand, options = {}) {
@@ -359,6 +371,13 @@ function runTrackedBuild(buildCommand, options = {}) {
   // "pnpm install --frozen-lockfile && pnpm run build"; git clone above is
   // deliberately argv-based and never shares this shell execution path.
   execSync(buildCommand, { stdio: "inherit", shell: true, ...options });
+}
+
+export function renderWorker(apiTools, fallbackSource) {
+  if (!apiTools.length) return fallbackSource;
+  const imports = apiTools.map((tool, i) => `import api${i} from ${JSON.stringify(`./${tool.slug}/${tool.apiWorker}`)};`).join("\n");
+  const routes = apiTools.map((tool, i) => `if (path === ${JSON.stringify(`/${tool.slug}/api`)} || path.startsWith(${JSON.stringify(`/${tool.slug}/api/`)})) return api${i}.fetch(request, env, ctx);`).join("\n");
+  return `import pages from './_pages-worker.mjs';\n${imports}\nexport default {fetch(request, env, ctx) {\nconst path = new URL(request.url).pathname;\n${routes}\nreturn pages.fetch(request, env, ctx);\n}};\n`;
 }
 
 async function buildHub(root = process.cwd()) {
@@ -383,7 +402,7 @@ async function buildHub(root = process.cwd()) {
     const toolDist = path.join(distDir, slug);
 
     console.log(`\n==> Cloning ${repo} -> ${toolTmp}`);
-    cloneRepository(repo, toolTmp);
+    cloneRepository(repo, toolTmp, tool.commit);
 
     if (type === "static") {
       const srcRel = Object.hasOwn(tool, "src") ? tool.src : ".";
@@ -423,7 +442,15 @@ async function buildHub(root = process.cwd()) {
   }
 
   await buildIndex(root, distDir, tools);
-  await fs.writeFile(path.join(distDir, "_worker.js"), workerSource);
+  const apiTools = tools.filter(tool => tool.apiWorker);
+  for (const tool of apiTools) {
+    const entry = resolveWithinRoot(path.join(distDir, tool.slug), tool.apiWorker, "apiWorker");
+    if (!(await fs.stat(entry)).isFile()) throw new Error(`apiWorker is not a file: ${tool.slug}`);
+  }
+  if (apiTools.length) {
+    await fs.writeFile(path.join(distDir, "_pages-worker.mjs"), workerSource);
+  }
+  await fs.writeFile(path.join(distDir, "_worker.js"), renderWorker(apiTools, workerSource));
   await fs.writeFile(path.join(distDir, "robots.txt"), renderRobots());
   await fs.writeFile(path.join(distDir, "sitemap.xml"), renderSitemap(tools));
 }
