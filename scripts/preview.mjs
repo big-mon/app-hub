@@ -21,7 +21,8 @@ export async function stamp(){
  const railSha=git('_tmp/rail-meet');assert.equal(railSha,tool.commit,'Clone must match the tracked pin');
  const networkBytes=await fs.readFile('dist/rail-meet/network.json');const data=JSON.parse(networkBytes);
  const engine=await import(pathToFileURL(`${process.cwd()}/dist/rail-meet/engine.mjs`));
- const metadata={hubSha:git('.'),railSha,networkSha256:hash(networkBytes),heroSha256:hash(await fs.readFile('dist/rail-meet/hero-smile.png')),stations:data.stations.length,edges:data.edges.length};
+ const uiAssets={};for(const name of ['app.mjs','style.css'])uiAssets[name]=hash(await fs.readFile('dist/rail-meet/'+name));
+ const metadata={uiAssets,hubSha:git('.'),railSha,networkSha256:hash(networkBytes),heroSha256:hash(await fs.readFile('dist/rail-meet/hero-smile.png')),stations:data.stations.length,edges:data.edges.length};
  await fs.writeFile('dist/preview-build.json',JSON.stringify(metadata));
  const expected={metadata,stations:stationView(data),candidates:engine.recommend(data,['千葉','横浜'])};
  await fs.writeFile('preview-expected.json',JSON.stringify(expected));
@@ -35,13 +36,14 @@ export async function verify(origin,expected,fetcher=fetch){
  assert.match(html,/<title>みんなの中間駅/);assert.match(html,/id="find"/);assert.match(html,/id="map"/);
  assert.equal(hash(Buffer.from(await(await get('/rail-meet/network.json')).arrayBuffer())),expected.metadata.networkSha256,'Network mismatch');
  assert.equal(hash(Buffer.from(await(await get('/rail-meet/hero-smile.png')).arrayBuffer())),expected.metadata.heroSha256,'Character asset mismatch');
+ for(const [name,sha] of Object.entries(expected.metadata.uiAssets))assert.equal(hash(Buffer.from(await(await get('/rail-meet/'+name)).arrayBuffer())),sha,'UI asset mismatch: '+name);
  const stations=await(await get('/rail-meet/api/v1/stations')).json();assert.equal(stations.count,expected.stations.length);assert.deepEqual(stations.stations,expected.stations);
  const result=await(await get('/rail-meet/api/v1/recommendations',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({origins:['千葉','横浜']})})).json();
  assert.deepEqual(result.candidates,expected.candidates,'API is serving another network or engine');
  return {...expected.metadata,url:origin+'/rail-meet/'};
 }
 export function commentBody(result){
- return `${marker}\n\n検証済みプレビュー: ${result.url}\n\n- app-hub: \`${result.hubSha}\`\n- rail-meet: \`${result.railSha}\`\n- ${result.stations}駅・${result.edges}区間\n\n配信先の版情報・HTML・地図データ・キャラクター画像・駅一覧API・集合駅APIをビルド成果物と照合済み。\n\n<!-- rail-meet-preview ${JSON.stringify(result)} -->`;
+ return `${marker}\n\n検証済みプレビュー: ${result.url}\n\n- app-hub: \`${result.hubSha}\`\n- rail-meet: \`${result.railSha}\`\n- ${result.stations}駅・${result.edges}区間\n\n配信先の版情報・HTML・画面JS/CSS・地図データ・キャラクター画像・駅一覧API・集合駅APIをビルド成果物と照合済み。\n\n<!-- rail-meet-preview ${JSON.stringify(result)} -->`;
 }
 async function comment(){
  const repo=process.env.GH_REPO,number=process.env.PR_NUMBER;
