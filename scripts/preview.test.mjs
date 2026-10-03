@@ -1,6 +1,6 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {hash,verify,previewUrl,commentBody,marker,previewTarget} from './preview.mjs';
-const html='<title>みんなの中間駅</title><button id="find"></button><div id="map"></div>';
+import {hash,verify,previewUrl,commentBody,marker,previewTarget,applicationHtml} from './preview.mjs';
+const html='<html><body><title>みんなの中間駅</title><button id="find"></button><div id="map"></div></body></html>\n';
 const network='{"stations":[]}',hero='character bytes';
 const expected={html,metadata:{htmlSha256:hash(html),uiAssets:{'app.mjs':hash('picker js'),'style.css':hash('picker css')},hubSha:'a'.repeat(40),railSha:'b'.repeat(40),networkSha256:hash(network),heroSha256:hash(hero),stations:0,edges:0},stations:[],candidates:[]};
 function fixture(changes={}){return async(url,options)=>{const p=new URL(url).pathname;const routes={'/preview-build.json':expected.metadata,'/rail-meet/app.mjs':'picker js','/rail-meet/style.css':'picker css','/rail-meet/':html,'/rail-meet/network.json':network,'/rail-meet/hero-smile.png':hero,'/rail-meet/api/v1/stations':{count:0,stations:[]},'/rail-meet/api/v1/recommendations':{candidates:[]},...changes};if(p.endsWith('recommendations')){assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),{origins:['千葉','横浜']});}const body=routes[p];return new Response(typeof body==='string'?body:JSON.stringify(body));};}
@@ -30,4 +30,13 @@ test('removed tool exits stamp successfully without clone, dist or Cloudflare se
   execFileSync(process.execPath,[new URL('./preview.mjs',import.meta.url).pathname,'stamp'],{cwd:dir,env:{...process.env,GITHUB_ACTIONS:'true',PROJECT_NAME:'',GITHUB_OUTPUT:path.join(dir,'output')}});
   assert.equal(await fs.readFile(path.join(dir,'output'),'utf8'),'rail_preview=false\n');
  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('allow only the observed Pages analytics footer injection',async()=>{
+ const beacon=`<!-- Cloudflare Pages Analytics --><script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "${'a'.repeat(32)}"}'></script><!-- Cloudflare Pages Analytics -->`;
+ const served=html.replace('</body>',beacon+'</body>');
+ assert.equal(applicationHtml(served),html);
+ await verify('https://abc.project.pages.dev',expected,fixture({'/rail-meet/':served}));
+ for(const extra of [beacon+beacon,beacon.replace('beacon.min.js','old.js'),beacon.replace(' defer ',' async '),'<script src="old.js"></script>'])await assert.rejects(verify('https://abc.project.pages.dev',expected,fixture({'/rail-meet/':html.replace('</body>',extra+'</body>')})));
+ assert.notEqual(applicationHtml(beacon+html),html);
 });

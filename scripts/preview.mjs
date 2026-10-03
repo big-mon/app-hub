@@ -6,6 +6,10 @@ import assert from 'node:assert/strict';
 
 export const marker='<!-- app-hub-verified-preview -->';
 export const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+// Pages injects this existing analytics block at the end of HTML responses.
+// Allow only that exact script/attribute shape at the document tail; all app
+// markup, other scripts, duplicate injections and asset links must still match.
+export const applicationHtml=html=>html.replace(/<!-- Cloudflare Pages Analytics --><script defer src='https:\/\/static\.cloudflareinsights\.com\/beacon\.min\.js' data-cf-beacon='\{"token": "[a-f0-9]{32}"\}'><\/script><!-- Cloudflare Pages Analytics -->(?=<\/body><\/html>\s*$)/,'');
 export function previewUrl(value){
  const u=new URL(value);
  if(u.protocol!=='https:'||!/^[-a-z0-9]+\.[-a-z0-9]+\.pages\.dev$/.test(u.hostname)||u.username||u.password||u.port||u.pathname!=='/'||u.search||u.hash)throw Error('Expected a Cloudflare Pages deployment origin');
@@ -34,7 +38,7 @@ export async function verify(origin,expected,fetcher=fetch){
  origin=previewUrl(origin);
  async function get(path,options){const r=await fetcher(origin+path,{redirect:'error',signal:AbortSignal.timeout(15000),...options});assert.equal(r.status,200,path);return r;}
  assert.deepEqual(await(await get('/preview-build.json')).json(),expected.metadata,'Preview belongs to another build');
- const html=await(await get('/rail-meet/')).text();
+ const html=applicationHtml(await(await get('/rail-meet/')).text());
  if(hash(Buffer.from(html))!==expected.metadata.htmlSha256){
   let i=0;while(i<html.length&&html[i]===expected.html[i])i++;
   throw Error('HTML mismatch '+JSON.stringify({offset:i,expected:expected.html.slice(Math.max(0,i-60),i+180),actual:html.slice(Math.max(0,i-60),i+180),expectedLength:expected.html.length,actualLength:html.length}));

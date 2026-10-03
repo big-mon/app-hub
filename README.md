@@ -127,4 +127,4 @@ The preview is linked in one reusable PR comment only after its build identity, 
 
 A rail-meet change still needs a matching app-hub manifest pin. The existing repository-scoped GitHub token cannot dispatch or write comments in the other repository; this workflow adds no cross-repository token or secret.
 
-PRプレビューは、manifestの固定SHA付き `big-mon/rail-meet`（slug `rail-meet`、既存API Worker）専用です。削除・リネーム・参照先/API契約変更時は専用プレビューをスキップしてコメントに対象外と表示し、通常のビルド検証は継続します。checkout後、install/buildより先に前回のURLを検証待ち表示へ置換します。失敗・キャンセル時は古い検証済みURLを残しません。HTMLも組み立て済みファイルのSHA256と照合します。
+PRプレビューは、manifestの固定SHA付き `big-mon/rail-meet`（slug `rail-meet`、既存API Worker）専用です。削除・リネーム・参照先/API契約変更時は専用プレビューをスキップしてコメントに対象外と表示し、通常のビルド検証は継続します。checkout後、install/buildより先に前回のURLを検証待ち表示へ置換します。失敗・キャンセル時は古い検証済みURLを残しません。HTMLも組み立て済みファイルのSHA256と照合します。既存Cloudflare Pagesが末尾へ挿入するPages Analyticsの既知のscript/属性/コメント形状1件だけを比較時に除外します（公開32桁token）。他のscript、重複挿入、属性・参照先・本文変更は拒否し、配信内容やCloudflareの設定は変更しません。
