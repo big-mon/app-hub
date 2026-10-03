@@ -722,6 +722,13 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       'await writeFile("dist/index.html", "<link rel=stylesheet href=" + base + "assets/app.css><script src=" + base + "assets/app.js></script><script src=" + base + "assets/worker.js></script><link rel=icon href=" + base + "favicon.svg>");',
     ].join("\\n"),
   );
+} else if (repo.includes("rail-meet")) {
+  // No package.json: the registered Python build must work without an install.
+  await mkdir(path.join(destination, "public"), { recursive: true });
+  await mkdir(path.join(destination, "scripts"), { recursive: true });
+  await writeFile(path.join(destination, "public", "index.html"), "<p>fixture rail map</p>");
+  await writeFile(path.join(destination, "scripts", "build_data.py"), ${JSON.stringify('from pathlib import Path\nPath("public/network.json").write_text(\'{"fixture":true}\')\n')});
+  await writeFile(path.join(destination, "scripts", "build_basemap.py"), ${JSON.stringify('from pathlib import Path\nPath("public/basemap.json").write_text(\'{"fixture":true}\')\n')});
 } else {
   throw new Error("unexpected fixture repository: " + repo);
 }
@@ -749,6 +756,7 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       "https://app.damonge.com/amazon-link-cleaner-cloudflare/",
       "https://app.damonge.com/sorting-visualizer-web/",
       "https://app.damonge.com/image-compressor-web/",
+      "https://app.damonge.com/rail-meet/",
     ]);
     for (const relativePath of [
       "index.html",
@@ -756,6 +764,9 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       "amazon-link-cleaner-cloudflare/index.html",
       "sorting-visualizer-web/index.html",
       "image-compressor-web/index.html",
+      "rail-meet/index.html",
+      "rail-meet/network.json",
+      "rail-meet/basemap.json",
     ]) {
       assert.equal(await exists(path.join(tempRoot, "dist", relativePath)), true, relativePath);
     }
@@ -767,8 +778,16 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       "amazon-link-cleaner-cloudflare",
       "sorting-visualizer-web",
       "image-compressor-web",
+      "rail-meet",
     ]) {
       assert.match(hubHtml, new RegExp(`href="/${slug}/"`));
+    }
+
+    for (const name of ["network", "basemap"]) {
+      assert.deepEqual(
+        JSON.parse(await readFile(path.join(tempRoot, "dist", "rail-meet", `${name}.json`), "utf8")),
+        { fixture: true },
+      );
     }
 
     const imageHtml = await readFile(
@@ -828,6 +847,9 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       "/image-compressor-web/assets/app.css",
       "/image-compressor-web/assets/worker.js",
       "/image-compressor-web/favicon.svg",
+      "/rail-meet/",
+      "/rail-meet/network.json",
+      "/rail-meet/basemap.json",
     ]) {
       const response = await fetch(`http://127.0.0.1:${port}${requestPath}`);
       assert.equal(response.status, 200, requestPath);

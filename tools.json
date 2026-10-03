@@ -21,5 +21,13 @@
     "build": "export NPM_CONFIG_WORKSPACE_DIR=\"$PWD\" && pnpm --ignore-workspace install --frozen-lockfile && pnpm --ignore-workspace run build",
     "outDir": "dist",
     "basePathEnv": "BASE_PATH"
+  },
+  {
+    "slug": "rail-meet",
+    "title": "みんなの中間駅",
+    "repo": "https://github.com/big-mon/rail-meet",
+    "type": "node",
+    "build": "python3 scripts/build_data.py && python3 scripts/build_basemap.py",
+    "outDir": "public"
   }
 ]
