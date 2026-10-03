@@ -1,0 +1,49 @@
+name: Verified PR Preview
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: verified-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: pnpm/setup@v2.1.0
+        with:
+          version: 12.4.1
+          runtime: node@24.21.0
+          cache: true
+          install: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test && pnpm run build
+      - name: Stamp exact assembled sources
+        run: node scripts/preview.mjs stamp
+      - name: Deploy assembled dist to isolated preview branch
+        id: deploy
+        uses: cloudflare/wrangler-action@v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          command: pages deploy dist --project-name=${{ env.PROJECT_NAME }} --branch=preview-pr-${{ github.event.pull_request.number }} --commit-hash=${{ github.event.pull_request.head.sha }}
+      - name: Verify deployed HTML, assets and API before linking
+        env:
+          PREVIEW_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: node scripts/preview.mjs verify
+      - name: Update one verified preview comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/preview.mjs comment
