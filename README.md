@@ -126,3 +126,5 @@ Same-repository pull requests build the tracked manifest and deploy `dist` to an
 The preview is linked in one reusable PR comment only after its build identity, rail-meet HTML, network bytes, character asset, station API and recommendation API match the assembled output. A generic Cloudflare Git integration success check alone is not evidence of the correct content: an absent `/rail-meet/` asset can return the Hub's SPA fallback. `dist/preview-build.json` identifies the exact Hub head and checked-out rail-meet SHA. A stale run cannot replace the link after its PR head changes.
 
 A rail-meet change still needs a matching app-hub manifest pin. The existing repository-scoped GitHub token cannot dispatch or write comments in the other repository; this workflow adds no cross-repository token or secret.
+
+PRプレビューは、manifestの固定SHA付き `big-mon/rail-meet`（slug `rail-meet`、既存API Worker）専用です。削除・リネーム・参照先/API契約変更時は専用プレビューをスキップしてコメントに対象外と表示し、通常のビルド検証は継続します。checkout後、install/buildより先に前回のURLを検証待ち表示へ置換します。失敗・キャンセル時は古い検証済みURLを残しません。HTMLも組み立て済みファイルのSHA256と照合します。
