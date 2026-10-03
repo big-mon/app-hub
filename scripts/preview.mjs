@@ -26,7 +26,7 @@ export async function stamp(){
  const uiAssets={};for(const name of ['app.mjs','style.css'])uiAssets[name]=hash(await fs.readFile('dist/rail-meet/'+name));
  const metadata={htmlSha256:hash(await fs.readFile('dist/rail-meet/index.html')),uiAssets,hubSha:git('.'),railSha,networkSha256:hash(networkBytes),heroSha256:hash(await fs.readFile('dist/rail-meet/hero-smile.png')),stations:data.stations.length,edges:data.edges.length};
  await fs.writeFile('dist/preview-build.json',JSON.stringify(metadata));
- const expected={metadata,stations:stationView(data),candidates:engine.recommend(data,['千葉','横浜'])};
+ const expected={metadata,html:await fs.readFile('dist/rail-meet/index.html','utf8'),stations:stationView(data),candidates:engine.recommend(data,['千葉','横浜'])};
  await fs.writeFile('preview-expected.json',JSON.stringify(expected));
  console.log(JSON.stringify(metadata));
 }
@@ -35,7 +35,10 @@ export async function verify(origin,expected,fetcher=fetch){
  async function get(path,options){const r=await fetcher(origin+path,{redirect:'error',signal:AbortSignal.timeout(15000),...options});assert.equal(r.status,200,path);return r;}
  assert.deepEqual(await(await get('/preview-build.json')).json(),expected.metadata,'Preview belongs to another build');
  const html=await(await get('/rail-meet/')).text();
- assert.equal(hash(Buffer.from(html)),expected.metadata.htmlSha256,'HTML mismatch');
+ if(hash(Buffer.from(html))!==expected.metadata.htmlSha256){
+  let i=0;while(i<html.length&&html[i]===expected.html[i])i++;
+  throw Error('HTML mismatch '+JSON.stringify({offset:i,expected:expected.html.slice(Math.max(0,i-60),i+180),actual:html.slice(Math.max(0,i-60),i+180),expectedLength:expected.html.length,actualLength:html.length}));
+ }
  assert.match(html,/<title>みんなの中間駅/);assert.match(html,/id="find"/);assert.match(html,/id="map"/);
  assert.equal(hash(Buffer.from(await(await get('/rail-meet/network.json')).arrayBuffer())),expected.metadata.networkSha256,'Network mismatch');
  assert.equal(hash(Buffer.from(await(await get('/rail-meet/hero-smile.png')).arrayBuffer())),expected.metadata.heroSha256,'Character asset mismatch');
@@ -68,7 +71,7 @@ if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
   const expected=JSON.parse(await fs.readFile('preview-expected.json'));let result;
   for(let attempt=0;attempt<5;attempt++){
    try{result=await verify(process.env.PREVIEW_URL,expected);break;}
-   catch(error){if(attempt===4)throw error;await new Promise(r=>setTimeout(r,5000));}
+   catch(error){if(attempt===4){console.error('::error::'+error.message.replaceAll('%','%25').replaceAll('\r','%0D').replaceAll('\n','%0A'));throw error;}await new Promise(r=>setTimeout(r,5000));}
   }
   await fs.writeFile('verified-preview.json',JSON.stringify(result));
   console.log(JSON.stringify(result));

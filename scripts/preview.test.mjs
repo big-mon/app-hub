@@ -2,7 +2,7 @@ import {test} from 'node:test';import assert from 'node:assert/strict';
 import {hash,verify,previewUrl,commentBody,marker,previewTarget} from './preview.mjs';
 const html='<title>みんなの中間駅</title><button id="find"></button><div id="map"></div>';
 const network='{"stations":[]}',hero='character bytes';
-const expected={metadata:{htmlSha256:hash(html),uiAssets:{'app.mjs':hash('picker js'),'style.css':hash('picker css')},hubSha:'a'.repeat(40),railSha:'b'.repeat(40),networkSha256:hash(network),heroSha256:hash(hero),stations:0,edges:0},stations:[],candidates:[]};
+const expected={html,metadata:{htmlSha256:hash(html),uiAssets:{'app.mjs':hash('picker js'),'style.css':hash('picker css')},hubSha:'a'.repeat(40),railSha:'b'.repeat(40),networkSha256:hash(network),heroSha256:hash(hero),stations:0,edges:0},stations:[],candidates:[]};
 function fixture(changes={}){return async(url,options)=>{const p=new URL(url).pathname;const routes={'/preview-build.json':expected.metadata,'/rail-meet/app.mjs':'picker js','/rail-meet/style.css':'picker css','/rail-meet/':html,'/rail-meet/network.json':network,'/rail-meet/hero-smile.png':hero,'/rail-meet/api/v1/stations':{count:0,stations:[]},'/rail-meet/api/v1/recommendations':{candidates:[]},...changes};if(p.endsWith('recommendations')){assert.equal(options.method,'POST');assert.deepEqual(JSON.parse(options.body),{origins:['千葉','横浜']});}const body=routes[p];return new Response(typeof body==='string'?body:JSON.stringify(body));};}
 test('accept only Pages origins',()=>{assert.equal(previewUrl('https://abc.project.pages.dev'), 'https://abc.project.pages.dev');});
 test('verify exact deployed build and reject fallback/stale assets/API',async()=>{
