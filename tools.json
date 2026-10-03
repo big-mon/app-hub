@@ -28,6 +28,8 @@
     "repo": "https://github.com/big-mon/rail-meet",
     "type": "node",
     "build": "python3 scripts/build_data.py && python3 scripts/build_basemap.py",
-    "outDir": "public"
+    "outDir": "public",
+    "apiWorker": "api-worker.mjs",
+    "commit": "920b646ea6e034d73fff7e93a1b9b54dd5a61567"
   }
 ]
