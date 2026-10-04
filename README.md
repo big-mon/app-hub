@@ -118,3 +118,13 @@ staticツールはサブパス配信のため、`/assets/...` のような絶対
 `tools.json` の `apiWorker` は配信ディレクトリ内の `.mjs` エントリです。default export の `fetch(request, env, ctx)` を `/<slug>/api` とその配下だけに接続し、その他は既存の静的配信・Markdown変換を維持します。登録コードは既存buildと同じ信頼境界です。`commit` に40桁SHAを指定すると、そのコミットを取得してビルドします。
 
 rail-meetは既存の計算モジュールと生成JSONをWorkerへ同梱します。APIの仕様は `/rail-meet/developers`、OpenAPIは `/rail-meet/openapi.json`。IP別の制限は実行単位のベストエフォートで、全拠点共通の課金上限ではありません。API本番公開前に既存プランの使用枠・超過時挙動を確認し、必要なら別途承認を得てプラットフォーム側制限を設定してください。この変更では契約・bindings・セキュリティ設定を追加しません。
+
+## Verified PR previews
+
+Same-repository pull requests build the tracked manifest and deploy `dist` to an isolated `preview-pr-N` branch of the existing Cloudflare Pages project. The workflow reuses the production workflow's `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, and `PROJECT_NAME`; it does not add credentials or run for fork PRs. Build commands never receive Cloudflare credentials. No `pull_request_target` is used.
+
+The preview is linked in one reusable PR comment only after its build identity, rail-meet HTML, network bytes, character asset, station API and recommendation API match the assembled output. A generic Cloudflare Git integration success check alone is not evidence of the correct content: an absent `/rail-meet/` asset can return the Hub's SPA fallback. `dist/preview-build.json` identifies the exact Hub head and checked-out rail-meet SHA. A stale run cannot replace the link after its PR head changes.
+
+A rail-meet change still needs a matching app-hub manifest pin. The existing repository-scoped GitHub token cannot dispatch or write comments in the other repository; this workflow adds no cross-repository token or secret.
+
+PRプレビューは、manifestの固定SHA付き `big-mon/rail-meet`（slug `rail-meet`、既存API Worker）専用です。削除・リネーム・参照先/API契約変更時は専用プレビューをスキップしてコメントに対象外と表示し、通常のビルド検証は継続します。checkout後、install/buildより先に前回のURLを検証待ち表示へ置換します。失敗・キャンセル時は古い検証済みURLを残しません。HTMLも組み立て済みファイルのSHA256と照合します。既存Cloudflare Pagesが末尾へ挿入するPages Analyticsの既知のscript/属性/コメント形状1件だけを比較時に除外します（公開32桁token）。他のscript、重複挿入、属性・参照先・本文変更は拒否し、配信内容やCloudflareの設定は変更しません。

@@ -13,3 +13,5 @@ yarn-error.log*
 
 # OS
 .DS_Store
+/preview-expected.json
+/verified-preview.json
