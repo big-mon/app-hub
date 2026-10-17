@@ -725,6 +725,11 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       'await writeFile("dist/index.html", "<link rel=stylesheet href=" + base + "assets/app.css><script src=" + base + "assets/app.js></script><script src=" + base + "assets/worker.js></script><link rel=icon href=" + base + "favicon.svg>");',
     ].join("\\n"),
   );
+} else if (repo.includes("mountain-weather-rank")) {
+  await mkdir(path.join(destination, "src"), { recursive: true });
+  await writeFile(path.join(destination, "index.html"), '<link rel="stylesheet" href="./styles.css"><script type="module" src="./src/app.mjs"></script>');
+  await writeFile(path.join(destination, "styles.css"), "body { color: #202722; }");
+  await writeFile(path.join(destination, "src", "app.mjs"), "export const fixture = true;");
 } else if (repo.includes("rail-meet")) {
   await mkdir(path.join(destination, "public"), { recursive: true });
   await writeFile(path.join(destination, "public", "api-worker.mjs"), "export default {fetch: () => new Response('api fixture')}\\n");
@@ -762,6 +767,7 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       "https://app.damonge.com/sorting-visualizer-web/",
       "https://app.damonge.com/image-compressor-web/",
       "https://app.damonge.com/rail-meet/",
+      "https://app.damonge.com/mountain-weather-rank/",
     ]);
     for (const relativePath of [
       "index.html",
@@ -772,6 +778,9 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       "rail-meet/index.html",
       "rail-meet/network.json",
       "rail-meet/basemap.json",
+      "mountain-weather-rank/index.html",
+      "mountain-weather-rank/styles.css",
+      "mountain-weather-rank/src/app.mjs",
     ]) {
       assert.equal(await exists(path.join(tempRoot, "dist", relativePath)), true, relativePath);
     }
@@ -784,6 +793,7 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       "sorting-visualizer-web",
       "image-compressor-web",
       "rail-meet",
+      "mountain-weather-rank",
     ]) {
       assert.match(hubHtml, new RegExp(`href="/${slug}/"`));
     }
@@ -855,6 +865,9 @@ if (repo.includes("amazon-link-cleaner-cloudflare") || repo.includes("sorting-vi
       "/rail-meet/",
       "/rail-meet/network.json",
       "/rail-meet/basemap.json",
+      "/mountain-weather-rank/",
+      "/mountain-weather-rank/styles.css",
+      "/mountain-weather-rank/src/app.mjs",
     ]) {
       const response = await fetch(`http://127.0.0.1:${port}${requestPath}`);
       assert.equal(response.status, 200, requestPath);
