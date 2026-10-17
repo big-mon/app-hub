@@ -31,5 +31,12 @@
     "outDir": "public",
     "apiWorker": "api-worker.mjs",
     "commit": "a1a2836cb5ce0c33324a2f386cf74e56862167a0"
+  },
+  {
+    "slug": "mountain-weather-rank",
+    "title": "週末の山の天気",
+    "repo": "https://github.com/big-mon/mountain-weather-rank",
+    "type": "static",
+    "src": "."
   }
 ]
